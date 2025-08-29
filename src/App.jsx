@@ -1,10 +1,243 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, Timestamp, setLogLevel, writeBatch, getDocs, updateDoc, where, setDoc, getDoc } from 'firebase/firestore';
 
-function App() {
-  const [count, setCount] = useState(0)
+// --- Date Calculation Helper ---
+const generateTransactionInstances = (transactionRule) => {
+    const instances = [];
+    const hardEndDate = new Date('2030-12-31T23:59:59Z');
+    if (!transactionRule.startDate?.seconds) return instances;
+
+    const startDate = new Date(transactionRule.startDate.seconds * 1000);
+    
+    let effectiveEndDate = hardEndDate;
+    if (transactionRule.endDate?.seconds) {
+        const ruleEndDate = new Date(transactionRule.endDate.seconds * 1000);
+        if (ruleEndDate < hardEndDate) {
+            effectiveEndDate = ruleEndDate;
+        }
+    }
+
+    if (transactionRule.frequency === 'one-time') {
+        if (startDate <= effectiveEndDate) instances.push({ ...transactionRule, date: startDate });
+        return instances;
+    }
+
+    let currentDate = new Date(startDate);
+    while (currentDate <= effectiveEndDate) {
+        instances.push({ ...transactionRule, date: new Date(currentDate) });
+        switch (transactionRule.frequency) {
+            case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+            case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+            case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
+            case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
+            case 'yearly': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
+            default: return instances;
+        }
+    }
+    return instances;
+};
+
+// --- Helper Components ---
+
+const Modal = ({ isOpen, children }) => {
+    if (!isOpen) return null;
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <div style={{ backgroundColor: 'white', borderRadius: '1rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', padding: '1.5rem', width: '100%', maxWidth: '28rem', margin: '1rem', position: 'relative' }}>
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const RecurringTransactionForm = ({ onAddTransaction, loading, onDone }) => {
+    const [description, setDescription] = useState('');
+    const [amount, setAmount] = useState('');
+    const [type, setType] = useState('expense');
+    const [frequency, setFrequency] = useState('one-time');
+    const [startDate, setStartDate] = useState(new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'}));
+    const [hasEndDate, setHasEndDate] = useState(false);
+    const [endDate, setEndDate] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!description || !amount || isNaN(parseFloat(amount)) || !startDate || (hasEndDate && !endDate)) return;
+        
+        const transaction = { 
+            description, 
+            amount: parseFloat(amount), 
+            type, 
+            frequency, 
+            startDate: Timestamp.fromDate(new Date(startDate + 'T00:00:00-06:00')),
+            ...(hasEndDate && { endDate: Timestamp.fromDate(new Date(endDate + 'T00:00:00-06:00')) })
+        };
+        await onAddTransaction(transaction);
+        onDone();
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1F2937' }}>Add Transaction Rule</h2>
+             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                 <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Paycheck, Rent" style={{ width: '100%', padding: '0.5rem 1rem', border: '1px solid #D1D5DB', borderRadius: '0.5rem' }} required />
+                 <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount" style={{ width: '100%', padding: '0.5rem 1rem', border: '1px solid #D1D5DB', borderRadius: '0.5rem' }} required />
+                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ width: '100%', padding: '0.5rem 1rem', border: '1px solid #D1D5DB', borderRadius: '0.5rem' }} required />
+                 <select value={frequency} onChange={(e) => setFrequency(e.target.value)} style={{ width: '100%', padding: '0.5rem 1rem', border: '1px solid #D1D5DB', borderRadius: '0.5rem', backgroundColor: 'white' }}>
+                     <option value="one-time">One-time</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="bi-weekly">Bi-weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option>
+                 </select>
+                 <div style={{ display: 'flex', alignItems: 'center' }}>
+                     <input id="hasEndDate" type="checkbox" checked={hasEndDate} onChange={(e) => setHasEndDate(e.target.checked)} style={{ height: '1rem', width: '1rem' }}/>
+                     <label htmlFor="hasEndDate" style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: '#111827' }}>Set an end date</label>
+                 </div>
+                 {hasEndDate && (
+                      <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ width: '100%', padding: '0.5rem 1rem', border: '1px solid #D1D5DB', borderRadius: '0.5rem' }} required />
+                 )}
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                     <label style={{ display: 'flex', alignItems: 'center' }}><input type="radio" value="income" checked={type === 'income'} onChange={() => setType('income')} /><span style={{ marginLeft: '0.5rem', fontSize: '0.875rem' }}>Income</span></label>
+                     <label style={{ display: 'flex', alignItems: 'center' }}><input type="radio" value="expense" checked={type === 'expense'} onChange={() => setType('expense')} /><span style={{ marginLeft: '0.5rem', fontSize: '0.875rem' }}>Expense</span></label>
+                 </div>
+                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                     <button type="button" onClick={onDone} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: '500', backgroundColor: '#F3F4F6', borderRadius: '0.5rem' }}>Cancel</button>
+                     <button type="submit" disabled={loading} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: '500', color: 'white', backgroundColor: '#2563EB', borderRadius: '0.5rem', opacity: loading ? 0.5 : 1 }}>{loading ? 'Saving...' : 'Add Rule'}</button>
+                 </div>
+             </form>
+         </div>
+    );
+};
+
+const QuickAddForm = ({ onAddTransaction, loading, onDone }) => {
+    const [description, setDescription] = useState('');
+    const [amount, setAmount] = useState('');
+    const [type, setType] = useState('expense');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!description || !amount || isNaN(parseFloat(amount))) return;
+        
+        const transaction = { 
+            description, 
+            amount: parseFloat(amount), 
+            type, 
+            frequency: 'one-time', 
+            startDate: Timestamp.fromDate(new Date(new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'}) + 'T00:00:00-06:00')),
+        };
+        await onAddTransaction(transaction);
+        onDone();
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1F2937' }}>Quick Add Transaction</h2>
+            <p style={{ fontSize: '0.875rem', color: '#6B7280' }}>This will add a one-time transaction for today.</p>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Lunch, Coffee" style={{ width: '100%', padding: '0.5rem 1rem', border: '1px solid #D1D5DB', borderRadius: '0.5rem' }} required />
+                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount" style={{ width: '100%', padding: '0.5rem 1rem', border: '1px solid #D1D5DB', borderRadius: '0.5rem' }} required />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center' }}><input type="radio" value="income" checked={type === 'income'} onChange={() => setType('income')} /><span style={{ marginLeft: '0.5rem', fontSize: '0.875rem' }}>Income</span></label>
+                    <label style={{ display: 'flex', alignItems: 'center' }}><input type="radio" value="expense" checked={type === 'expense'} onChange={() => setType('expense')} /><span style={{ marginLeft: '0.5rem', fontSize: '0.875rem' }}>Expense</span></label>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                    <button type="button" onClick={onDone} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: '500', backgroundColor: '#F3F4F6', borderRadius: '0.5rem' }}>Cancel</button>
+                    <button type="submit" disabled={loading} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: '500', color: 'white', backgroundColor: '#2563EB', borderRadius: '0.5rem', opacity: loading ? 0.5 : 1 }}>{loading ? 'Saving...' : 'Add'}</button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+
+const ManageRulesModal = ({ isOpen, onClose, rules, onDelete, revisions, onViewRevisions }) => {
+    const modifiedRuleIds = useMemo(() => new Set(revisions.map(r => r.parentId)), [revisions]);
+
+    return (
+        <Modal isOpen={isOpen}>
+             <button onClick={onClose} style={{ position: 'absolute', top: '1rem', right: '1rem', color: '#9CA3AF' }}>&times;</button>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '1rem' }}>Manage Rules</h2>
+            <div style={{ maxHeight: '24rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {rules.map(t => (
+                    <li key={t.id} style={{ padding: '0.75rem', backgroundColor: '#F9FAFB', borderRadius: '0.5rem', listStyle: 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                                <p style={{ fontWeight: '600', display: 'flex', alignItems: 'center' }}>
+                                    {t.description}
+                                    {modifiedRuleIds.has(t.id) && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', fontWeight: 'bold', color: '#EF4444' }}>(M)</span>}
+                                </p>
+                                <p style={{ fontSize: '0.875rem', color: '#6B7280', textTransform: 'capitalize' }}>{t.frequency} from {new Date(t.startDate.seconds * 1000).toLocaleDateString()} {t.endDate && `to ${new Date(t.endDate.seconds * 1000).toLocaleDateString()}`}</p>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ color: t.type === 'income' ? '#16A34A' : '#DC2626' }}>${t.amount.toFixed(2)}</span>
+                                <button onClick={() => onDelete(t.id)} style={{ color: '#9CA3AF' }}>&times;</button>
+                            </div>
+                        </div>
+                        {modifiedRuleIds.has(t.id) && (
+                            <button onClick={() => onViewRevisions(t.id)} style={{ fontSize: '0.75rem', color: '#2563EB', marginTop: '0.25rem' }}>View Revisions</button>
+                        )}
+                    </li>
+                ))}
+            </div>
+        </Modal>
+    );
+};
+
+const RevisionsModal = ({ isOpen, onClose, revisions, ruleId }) => {
+    const relevantRevisions = useMemo(() => revisions.filter(r => r.parentId === ruleId), [revisions, ruleId]);
+    return (
+        <Modal isOpen={isOpen}>
+             <button onClick={onClose} style={{ position: 'absolute', top: '1rem', right: '1rem', color: '#9CA3AF' }}>&times;</button>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '1rem' }}>Revision History</h2>
+            <div style={{ maxHeight: '24rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {relevantRevisions.length > 0 ? relevantRevisions.map(rev => (
+                    <div key={rev.id} style={{ padding: '0.75rem', backgroundColor: '#F9FAFB', borderRadius: '0.5rem', fontSize: '0.875rem' }}>
+                        <p style={{ fontWeight: '600' }}>Transaction on {new Date(rev.transactionDate.seconds * 1000).toLocaleDateString()}</p>
+                        <p style={{ fontSize: '0.75rem', color: '#6B7280', fontFamily: 'monospace' }}>ID: {rev.transactionId}</p>
+                        <p>Changed on {new Date(rev.revisionDate.seconds * 1000).toLocaleString()}</p>
+                        <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: 'rgba(254, 226, 226, 1)', borderRadius: '0.25rem' }}>
+                            <p><b>Before:</b> {rev.before.description} (${rev.before.amount.toFixed(2)}) on {new Date(rev.before.date.seconds * 1000).toLocaleDateString()}</p>
+                        </div>
+                        <div style={{ marginTop: '0.25rem', padding: '0.5rem', backgroundColor: 'rgba(220, 252, 231, 1)', borderRadius: '0.25rem' }}>
+                             <p><b>After:</b> {rev.after.description} (${rev.after.amount.toFixed(2)}) on {new Date(rev.after.date.seconds * 1000).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                )) : <p>No revisions found for this rule.</p>}
+            </div>
+        </Modal>
+    );
+};
+
+const UnmodifiedListModal = ({ isOpen, onClose, unmodifiedEntries }) => (
+    <Modal isOpen={isOpen}>
+         <button onClick={onClose} style={{ position: 'absolute', top: '1rem', right: '1rem', color: '#9CA3AF' }}>&times;</button>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1F2937', marginBottom: '1rem' }}>Unmodified Transactions</h2>
+        <p style={{ fontSize: '0.875rem', color: '#4B5563', marginBottom: '1rem' }}>The following were not updated because they were previously modified or posted:</p>
+        <div style={{ maxHeight: '16rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {unmodifiedEntries.map(entry => (
+                <div key={entry.id} style={{ padding: '0.5rem', backgroundColor: '#F3F4F6', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
+                    <p><b>{entry.description}</b> on {new Date(entry.date.seconds * 1000).toLocaleDateString()}</p>
+                </div>
+            ))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+            <button onClick={onClose} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', backgroundColor: '#2563EB', color: 'white', borderRadius: '0.5rem' }}>OK</button>
+        </div>
+    </Modal>
+);
+
+const SetBudgetWindowModal = ({ onSave, onCancel, currentSettings }) => {
+    const [startDate, setStartDate] = useState(currentSettings.startDate ? new Date(currentSettings.startDate.seconds * 1000).toISOString().split('T')[0] : new Date().toLocaleDateString('en-CA', {timeZone: 'America/Chicago'}));
+    const [interval, setInterval] = useState(currentSettings.interval || 'bi-weekly');
+
+    const handleSave = () => {
+        let dateToSave = new Date(startDate + 'T00:00:00-06:00');
+        if (interval === 'monthly') {
+            dateToSave.setDate(1);
+        }
+        onSave({
+            startDate: Timestamp.fromDate(dateToSave),
+            interval
+        });
+    };
 
     return (
         <Modal isOpen={true}>
@@ -801,3 +1034,4 @@ export default function App() {
         </div>
     );
 }
+
