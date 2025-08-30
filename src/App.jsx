@@ -8,7 +8,11 @@ function App() {
         let ruleToDeleteId = null;
         let ledgerItemToEditId = null;
         let pendingChanges = null;
+        let isFetchingVirtual = false;
         
+        // App State
+        let selectedTimeZone = '-6'; // Default to Central Time (UTC-6)
+
         // Filter State
         let itemFilter = []; 
         let balanceFilter = 'projected'; // 'projected' or 'actual'
@@ -18,13 +22,20 @@ function App() {
         const addRuleForm = document.getElementById('add-rule-form');
         const rulesList = document.getElementById('rules-list');
         const ledgerBody = document.getElementById('ledger-body');
+        const ledgerTabContent = document.getElementById('ledger-tab-content');
         const populateTestDataBtn = document.getElementById('populate-test-data-btn');
+        const settingsBtn = document.getElementById('settings-btn');
 
         // Filter UI
         const nameHeader = document.getElementById('name-header');
         const dateHeader = document.getElementById('date-header');
         const balanceHeader = document.getElementById('balance-header');
         const itemFilterDropdown = document.getElementById('item-filter-dropdown');
+
+        // Settings Modal
+        const settingsModal = document.getElementById('settings-modal');
+        const closeSettingsBtn = document.getElementById('close-settings-btn');
+        const timeZoneSelector = document.getElementById('time-zone-selector');
         
         // Rule Modals
         const ruleDetailsModal = document.getElementById('rule-details-modal');
@@ -73,11 +84,26 @@ function App() {
         function saveData() {
             localStorage.setItem('budgetRules', JSON.stringify(rules));
             localStorage.setItem('budgetLedger', JSON.stringify(ledger));
+            localStorage.setItem('budgetSettings', JSON.stringify({ timeZone: selectedTimeZone }));
         }
 
         function loadData() {
             rules = JSON.parse(localStorage.getItem('budgetRules')) || [];
             ledger = JSON.parse(localStorage.getItem('budgetLedger')) || [];
+            const settings = JSON.parse(localStorage.getItem('budgetSettings'));
+            if (settings && settings.timeZone) {
+                selectedTimeZone = settings.timeZone;
+            }
+            timeZoneSelector.value = selectedTimeZone;
+        }
+
+        function getTodayInSelectedTZ() {
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const tzOffset = parseFloat(selectedTimeZone) * 3600000;
+            const today = new Date(utc + tzOffset);
+            today.setHours(0, 0, 0, 0);
+            return today;
         }
         
         function renderAll() {
@@ -105,7 +131,8 @@ function App() {
             generateLedgerItemsForRule(newRule);
             itemFilter.push(newRule.id); // Automatically select new rule
             saveData(); renderAll(); addRuleForm.reset();
-            document.getElementById('rule-start-date').valueAsDate = new Date();
+            const today = getTodayInSelectedTZ();
+            document.getElementById('rule-start-date').valueAsDate = today;
         }
         
         function deleteRule(ruleId) {
@@ -162,7 +189,7 @@ function App() {
         function populateWithTestData() {
             rules = []; ledger = [];
             const toISODate = (d) => d.toISOString().split('T')[0];
-            const testRules = [ { name: "Paycheck", amount: 2500, frequency: "bi-weekly", startDate: toISODate(new Date('2025-09-05')) }, { name: "Rent/Mortgage", amount: -1500, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Groceries", amount: -150, frequency: "weekly", startDate: toISODate(new Date('2025-08-31')) }, { name: "Internet Bill", amount: -75, frequency: "monthly", startDate: toISODate(new Date('2025-09-10')) }, { name: "Spotify", amount: -10.99, frequency: "monthly", startDate: toISODate(new Date('2025-09-12')) }, { name: "Gasoline", amount: -60, frequency: "bi-weekly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Electricity Bill", amount: -120, frequency: "monthly", startDate: toISODate(new Date('2025-09-20')) }, { name: "Side Gig", amount: 450, frequency: "monthly", startDate: toISODate(new Date('2025-09-15')) }, { name: "Gym Membership", amount: -40, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Car Insurance", amount: -110, frequency: "monthly", startDate: toISODate(new Date('2025-09-05')) }, { name: "Phone Bill", amount: -85, frequency: "monthly", startDate: toISODate(new Date('2025-09-22')) }, { name: "Birthday Gift", amount: -75, frequency: "one-time", startDate: toISODate(new Date('2025-10-10')) }, { name: "Health Insurance", amount: -350, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Coffee Shop", amount: -5, frequency: "daily", startDate: toISODate(new Date()) }, ];
+            const testRules = [ { name: "Paycheck", amount: 2500, frequency: "bi-weekly", startDate: toISODate(new Date('2025-09-05')) }, { name: "Rent/Mortgage", amount: -1500, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Groceries", amount: -150, frequency: "weekly", startDate: toISODate(new Date('2025-08-31')) }, { name: "Internet Bill", amount: -75, frequency: "monthly", startDate: toISODate(new Date('2025-09-10')) }, { name: "Spotify", amount: -10.99, frequency: "monthly", startDate: toISODate(new Date('2025-09-12')) }, { name: "Gasoline", amount: -60, frequency: "bi-weekly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Electricity Bill", amount: -120, frequency: "monthly", startDate: toISODate(new Date('2025-09-20')) }, { name: "Side Gig", amount: 450, frequency: "monthly", startDate: toISODate(new Date('2025-09-15')) }, { name: "Gym Membership", amount: -40, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Car Insurance", amount: -110, frequency: "monthly", startDate: toISODate(new Date('2025-09-05')) }, { name: "Phone Bill", amount: -85, frequency: "monthly", startDate: toISODate(new Date('2025-09-22')) }, { name: "Birthday Gift", amount: -75, frequency: "one-time", startDate: toISODate(new Date('2025-10-10')) }, { name: "Health Insurance", amount: -350, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Coffee Shop", amount: -5, frequency: "daily", startDate: toISODate(getTodayInSelectedTZ()) }, ];
             testRules.forEach(r => {
                 const newRule = { id: crypto.randomUUID(), ...r };
                 rules.push(newRule); generateLedgerItemsForRule(newRule);
@@ -232,8 +259,7 @@ function App() {
         }
         
         function updateUnpostedCounter() {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const today = getTodayInSelectedTZ();
 
             const unpostedCount = ledger.filter(item => {
                 const itemDate = new Date(item.date + 'T00:00:00Z');
@@ -278,8 +304,7 @@ function App() {
             let itemsToDisplay = sortedLedger;
 
             if (dateFilter === 'current') {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0); 
+                const today = getTodayInSelectedTZ();
                 itemsToDisplay = itemsToDisplay.filter(item => new Date(item.date + 'T00:00:00Z') >= today);
             }
             
@@ -297,10 +322,13 @@ function App() {
             itemsToDisplay.forEach(item => {
                 const row = ledgerBody.insertRow();
                 row.dataset.id = item.id;
+                const itemBalance = balanceMap.get(item.id);
+                row.dataset.date = item.date;
+                row.dataset.balance = itemBalance;
+                
                 row.addEventListener('click', () => openEditModal(item.id));
                 
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
+                const today = getTodayInSelectedTZ();
                 const itemDate = new Date(item.date + 'T00:00:00Z');
 
                 let statusEmoji = '';
@@ -312,7 +340,6 @@ function App() {
                 
                 if (item.status?.modified) statusEmoji += '📝';
 
-                const itemBalance = balanceMap.get(item.id);
                 const formattedAmount = (item.amount).toFixed(2);
                 const [y, m, d] = item.date.split('-');
                 const formattedDate = `${m}/${d}/${y.slice(-2)}`;
@@ -467,7 +494,7 @@ function App() {
                 saveData(); renderLedger(); editLedgerItemModal.style.display = 'none';
                 return;
             }
-            const today = new Date(); today.setHours(0,0,0,0);
+            const today = getTodayInSelectedTZ();
             const itemDate = new Date(item.date + 'T00:00:00Z');
             if (itemDate > today) {
                 futurePostPrompt.style.display = 'block';
@@ -489,7 +516,7 @@ function App() {
         function handleMoveAndPost() {
             const item = ledger.find(i => i.id === ledgerItemToEditId);
             if (!item) return;
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getTodayInSelectedTZ().toISOString().split('T')[0];
             addHistoryEntry(item, `Date moved from ${item.date} to ${todayStr} and posted.`);
             item.date = todayStr;
             item.status.posted = true;
@@ -535,10 +562,133 @@ function App() {
             }
             ruleTransactionsModal.style.display = 'flex';
         }
+        
+        function generateVirtualEntries() {
+            const allRows = ledgerBody.rows;
+            const lastRow = allRows[allRows.length - 1];
+            if (!lastRow) {
+                isFetchingVirtual = false;
+                return;
+            }
+
+            let lastDateStr = lastRow.dataset.date;
+            let lastBalance = parseFloat(lastRow.dataset.balance);
+
+            if (!lastDateStr || isNaN(lastBalance)) {
+                isFetchingVirtual = false;
+                return;
+            }
+            
+            const activeRules = rules.filter(rule => itemFilter.includes(rule.id) && rule.frequency !== 'one-time');
+            if(activeRules.length === 0) {
+                isFetchingVirtual = false;
+                return;
+            }
+
+            let lastOccurrences = {};
+            activeRules.forEach(rule => {
+                const ruleItems = Array.from(allRows).filter(row => {
+                     const rowItemId = row.dataset.id;
+                     if (rowItemId.includes('-virtual-')) {
+                         return rowItemId.startsWith(rule.id);
+                     }
+                     const realItem = ledger.find(i => i.id === rowItemId);
+                     return realItem && realItem.parentRuleId === rule.id;
+                });
+                const lastItem = ruleItems[ruleItems.length - 1];
+                lastOccurrences[rule.id] = lastItem ? lastItem.dataset.date : rule.startDate;
+            });
+            
+            let potentialEntries = [];
+            
+            activeRules.forEach(rule => {
+                let lastKnownDate = new Date(lastOccurrences[rule.id] + 'T00:00:00Z');
+                let nextDate = new Date(lastKnownDate);
+
+                 switch (rule.frequency) {
+                    case 'daily': nextDate.setUTCDate(nextDate.getUTCDate() + 1); break;
+                    case 'weekly': nextDate.setUTCDate(nextDate.getUTCDate() + 7); break;
+                    case 'bi-weekly': nextDate.setUTCDate(nextDate.getUTCDate() + 14); break;
+                    case 'monthly': nextDate.setUTCMonth(nextDate.getUTCMonth() + 1); break;
+                    case 'annually': nextDate.setUTCFullYear(nextDate.getUTCFullYear() + 1); break;
+                }
+                
+                potentialEntries.push({
+                    name: rule.name,
+                    amount: rule.amount,
+                    date: nextDate.toISOString().split('T')[0],
+                    parentRuleId: rule.id
+                });
+            });
+            
+            const sortedPotentialEntries = potentialEntries.sort((a,b) => new Date(a.date) - new Date(b.date));
+            const nextEntries = [];
+            
+            for(let i = 0; i < 30; i++) {
+                if(sortedPotentialEntries.length === 0) break;
+                
+                const nextEntry = sortedPotentialEntries.shift();
+                nextEntries.push(nextEntry);
+                
+                const rule = activeRules.find(r => r.id === nextEntry.parentRuleId);
+                let nextDate = new Date(nextEntry.date + 'T00:00:00Z');
+                
+                switch (rule.frequency) {
+                    case 'daily': nextDate.setUTCDate(nextDate.getUTCDate() + 1); break;
+                    case 'weekly': nextDate.setUTCDate(nextDate.getUTCDate() + 7); break;
+                    case 'bi-weekly': nextDate.setUTCDate(nextDate.getUTCDate() + 14); break;
+                    case 'monthly': nextDate.setUTCMonth(nextDate.getUTCMonth() + 1); break;
+                    case 'annually': nextDate.setUTCFullYear(nextDate.getUTCFullYear() + 1); break;
+                }
+                
+                const newPotential = {
+                     name: rule.name,
+                    amount: rule.amount,
+                    date: nextDate.toISOString().split('T')[0],
+                    parentRuleId: rule.id
+                };
+                
+                sortedPotentialEntries.push(newPotential);
+                sortedPotentialEntries.sort((a,b) => new Date(a.date) - new Date(b.date));
+            }
+
+            
+            nextEntries.forEach(item => {
+                lastBalance += item.amount;
+                const row = ledgerBody.insertRow();
+                row.classList.add('virtual-item');
+                row.dataset.id = `${item.parentRuleId}-virtual-${item.date}`;
+                row.dataset.date = item.date;
+                row.dataset.balance = lastBalance;
+                
+                const [y, m, d] = item.date.split('-');
+                const formattedDate = `${m}/${d}/${y.slice(-2)}`;
+                const formattedAmount = item.amount.toFixed(2);
+                
+                row.innerHTML = `
+                    <td class="col-status">📈</td>
+                    <td class="col-item" title="${item.name}">${item.name}</td>
+                    <td class="col-date">${formattedDate}</td>
+                    <td class="col-amount ${item.amount >= 0 ? 'amount-income' : 'amount-expense'}">${formattedAmount}</td>
+                    <td class="col-balance ${lastBalance < 0 ? 'balance-negative' : ''}">${lastBalance.toFixed(2)}</td>
+                `;
+            });
+            
+            isFetchingVirtual = false;
+        }
 
         // --- Event Listeners ---
         addRuleForm.addEventListener('submit', addRule);
         populateTestDataBtn.addEventListener('click', populateWithTestData);
+        
+        ledgerTabContent.addEventListener('scroll', () => {
+            if (isFetchingVirtual) return;
+            const { scrollTop, scrollHeight, clientHeight } = ledgerTabContent;
+            if (scrollHeight - scrollTop - clientHeight < 100) {
+                isFetchingVirtual = true;
+                generateVirtualEntries();
+            }
+        });
         
         // Filter Listeners
         dateHeader.addEventListener('click', () => {
@@ -611,6 +761,16 @@ function App() {
         cancelDeleteItemBtn.addEventListener('click', () => { deleteItemModal.style.display = 'none'; });
         editItemHistoryBtn.addEventListener('click', () => showHistory(ledgerItemToEditId));
         closeHistoryBtn.addEventListener('click', () => { historyModal.style.display = 'none'; });
+        
+        // Settings Modal Listeners
+        settingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex' });
+        closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'none' });
+        timeZoneSelector.addEventListener('change', (e) => {
+            selectedTimeZone = e.target.value;
+            saveData();
+            renderAll(); // Re-render to apply new time zone logic
+        });
+
 
         // Series Update Listeners
         applyToOneBtn.addEventListener('click', saveSingleChange);
@@ -624,7 +784,8 @@ function App() {
         function init() { 
             loadData(); 
             itemFilter = rules.map(r => r.id); // Default to all selected
-            document.getElementById('rule-start-date').valueAsDate = new Date(); 
+            const today = getTodayInSelectedTZ();
+            document.getElementById('rule-start-date').valueAsDate = today; 
             renderAll(); 
         }
         init();
@@ -669,6 +830,7 @@ function App() {
             display: flex;
             background-color: var(--secondary-color);
             border-bottom: 1px solid var(--border-color);
+            position: relative;
         }
 
         .tab-link {
@@ -687,6 +849,19 @@ function App() {
         .tab-link.active {
             border-bottom-color: var(--accent-color);
             font-weight: bold;
+        }
+        
+        #settings-btn {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 0 5px;
         }
         
         .app-content {
@@ -767,6 +942,11 @@ function App() {
             background-color: var(--secondary-color);
             cursor: pointer;
             color: var(--text-color);
+        }
+        
+        #ledger-table tr.virtual-item {
+            opacity: 0.7;
+            pointer-events: none;
         }
         
         .col-status { width: 3em; }
@@ -1021,6 +1201,7 @@ function App() {
           <nav className="tabs">
               <button className="tab-link active" data-tabid="ledger" onClick={() => window.showTab('ledger')}>Ledger</button>
               <button className="tab-link" data-tabid="rules" onClick={() => window.showTab('rules')}>Rules</button>
+              <button id="settings-btn">⚙️</button>
           </nav>
 
           <main className="app-content">
@@ -1058,6 +1239,40 @@ function App() {
                   <div className="rules-list-container"><ul id="rules-list" className="data-list"></ul></div>
               </div>
           </main>
+      </div>
+      
+      {/* Settings Modal */}
+      <div id="settings-modal" className="modal-overlay">
+          <div className="modal-content">
+              <h3>Settings</h3>
+              <div className="form-group">
+                  <label htmlFor="time-zone-selector">Time Zone</label>
+                  <select id="time-zone-selector">
+                      <option value="-12">(UTC-12) International Date Line West</option>
+                      <option value="-11">(UTC-11) Samoa</option>
+                      <option value="-10">(UTC-10) Hawaii</option>
+                      <option value="-9">(UTC-9) Alaska</option>
+                      <option value="-8">(UTC-8) Pacific Time</option>
+                      <option value="-7">(UTC-7) Mountain Time</option>
+                      <option value="-6">(UTC-6) Central Time</option>
+                      <option value="-5">(UTC-5) Eastern Time</option>
+                      <option value="-4">(UTC-4) Atlantic Time</option>
+                      <option value="-3">(UTC-3) Buenos Aires</option>
+                      <option value="0">(UTC 0) London, GMT</option>
+                      <option value="1">(UTC+1) Berlin, Paris</option>
+                      <option value="2">(UTC+2) Athens, Cairo</option>
+                      <option value="3">(UTC+3) Moscow</option>
+                      <option value="5.5">(UTC+5:30) India</option>
+                      <option value="8">(UTC+8) Beijing, Perth</option>
+                      <option value="9">(UTC+9) Tokyo, Seoul</option>
+                      <option value="10">(UTC+10) Sydney</option>
+                      <option value="12">(UTC+12) New Zealand</option>
+                  </select>
+              </div>
+              <div className="modal-buttons">
+                  <button id="close-settings-btn" className="modal-btn btn-secondary">Close</button>
+              </div>
+          </div>
       </div>
       
       {/* Rule Details Modal */}
