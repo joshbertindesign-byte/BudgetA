@@ -1,8 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, Timestamp, setLogLevel, writeBatch, getDocs, updateDoc, where, setDoc, getDoc } from 'firebase/firestore';
-import './App.css';
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
