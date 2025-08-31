@@ -167,7 +167,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
             console.log("New budget created with ID:", newBudgetId);
         } catch (err) {
             console.error("Error creating budget:", err);
-            setError('Failed to create a new budget. Please try again.');
+            setError(`Failed to create budget. Check Firestore rules & connection. Error: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -275,7 +275,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
             onBudgetLoaded(newBudgetId, settings, allGeneratedRules, allGeneratedTransactions);
         } catch (err) {
             console.error("Error creating demo budget:", err);
-            setError('Failed to create a demo budget. Please try again.');
+            setError(`Failed to create demo budget. Error: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -312,7 +312,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
             }
         } catch (err) {
             console.error("Error loading budget:", err);
-            setError('Failed to load budget. Check the ID and your connection.');
+            setError(`Failed to load budget. Error: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -1376,24 +1376,75 @@ export default function App() {
         transactions: [],
     });
 
+     React.useEffect(() => {
+        // Inject dependencies into the document head
+        if (!document.getElementById('tailwind-script')) {
+            const tailwindScript = document.createElement('script');
+            tailwindScript.id = 'tailwind-script';
+            tailwindScript.src = "https://cdn.tailwindcss.com";
+            document.head.appendChild(tailwindScript);
+        }
+
+        if (!document.getElementById('google-fonts-preconnect-1')) {
+            const preconnect1 = document.createElement('link');
+            preconnect1.id = 'google-fonts-preconnect-1';
+            preconnect1.rel = 'preconnect';
+            preconnect1.href = 'https://fonts.googleapis.com';
+            document.head.appendChild(preconnect1);
+        }
+
+        if (!document.getElementById('google-fonts-preconnect-2')) {
+            const preconnect2 = document.createElement('link');
+            preconnect2.id = 'google-fonts-preconnect-2';
+            preconnect2.rel = 'preconnect';
+            preconnect2.href = 'https://fonts.gstatic.com';
+            preconnect2.crossOrigin = 'true';
+            document.head.appendChild(preconnect2);
+        }
+        
+        if (!document.getElementById('google-fonts-link')) {
+            const fontsLink = document.createElement('link');
+            fontsLink.id = 'google-fonts-link';
+            fontsLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+            fontsLink.rel = 'stylesheet';
+            document.head.appendChild(fontsLink);
+        }
+        
+        if (!document.getElementById('custom-body-style')) {
+            const style = document.createElement('style');
+            style.id = 'custom-body-style';
+            style.textContent = `body { font-family: 'Inter', sans-serif; }`;
+            document.head.appendChild(style);
+        }
+
+        document.title = "Predictive Budgeting App";
+    }, []);
+
+
     React.useEffect(() => {
         try {
+            console.log("Initializing Firebase...");
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             const firestore = getFirestore(app);
             setDb(firestore);
+            console.log("Firebase initialized successfully.");
 
             const unsubscribe = onAuthStateChanged(auth, async (user) => {
                 if (user) {
+                    console.log("User is signed in:", user.uid);
                     setUserId(user.uid);
                     setAuthReady(true);
                 } else {
                      try {
+                        console.log("No user signed in, attempting anonymous sign in...");
                         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                         if (token) {
                             await signInWithCustomToken(auth, token);
+                            console.log("Signed in with custom token.");
                         } else {
                             await signInAnonymously(auth);
+                            console.log("Signed in anonymously.");
                         }
                     } catch (error) {
                         console.error("Firebase sign-in failed:", error);
@@ -1426,25 +1477,25 @@ export default function App() {
 
 
     if (!authReady || !db) {
-        return <div className="min-h-screen bg-gray-900 flex justify-center items-center text-white">Authenticating...</div>;
+        return <div className="min-h-screen bg-gray-900 flex justify-center items-center text-white">Authenticating & Initializing...</div>;
     }
-
-    if (!budgetState.id || !budgetState.settings) {
-        return <SetupScreen onBudgetLoaded={handleBudgetLoaded} db={db} userId={userId} />;
-    }
-
-    return <AppDashboard 
-        budgetId={budgetState.id}
-        settings={budgetState.settings}
-        initialRules={budgetState.rules}
-        initialTransactions={budgetState.transactions}
-        db={db}
-        onBudgetIdChange={handleBudgetIdChange}
-        onSettingsChange={handleSettingsChange}
-    />;
+    
+    return (
+        <React.Fragment>
+            {!budgetState.id || !budgetState.settings ? (
+                <SetupScreen onBudgetLoaded={handleBudgetLoaded} db={db} userId={userId} />
+            ) : (
+                <AppDashboard 
+                    budgetId={budgetState.id}
+                    settings={budgetState.settings}
+                    initialRules={budgetState.rules}
+                    initialTransactions={budgetState.transactions}
+                    db={db}
+                    onBudgetIdChange={handleBudgetIdChange}
+                    onSettingsChange={handleSettingsChange}
+                />
+            )}
+        </React.Fragment>
+    );
 }
-
-
-
-
 
