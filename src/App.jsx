@@ -460,13 +460,6 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         date: formatDateInTimeZone(new Date(), settings.timeZone)
     });
 
-    const clearVirtualTransactions = () => {
-        if (virtualTransactions.length > 0) {
-            setVirtualTransactions([]);
-        }
-    };
-
-
     useOutsideClick(dateFilterRef, () => setIsDateFilterOpen(false));
     useOutsideClick(ruleFilterRef, () => setIsRuleFilterOpen(false));
 
@@ -522,8 +515,12 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     }, [virtualTransactions, transactionsWithBalance]);
 
      const allVisibleTransactions = React.useMemo(() => {
-        return [...filteredTransactions, ...virtualTransactionsWithBalance];
-    }, [filteredTransactions, virtualTransactionsWithBalance]);
+        const filteredVirtuals = selectedRuleIds.length > 0
+            ? virtualTransactionsWithBalance.filter(t => selectedRuleIds.includes(t.ruleId))
+            : virtualTransactionsWithBalance;
+
+        return [...filteredTransactions, ...filteredVirtuals];
+    }, [filteredTransactions, virtualTransactionsWithBalance, selectedRuleIds]);
     
     const pastDueCount = React.useMemo(() => {
         return transactions.filter(t => t.date < todayString && !t.isPosted).length;
@@ -1112,7 +1109,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     )}
                                 </button>
                                 {isDateFilterOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
+                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
                                     <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">From Today Onwards</button>
                                     <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">All Transactions</button>
                                     <div className="border-t border-gray-600 pt-3 space-y-2">
@@ -1129,7 +1126,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     Rules: {selectedRuleIds.length === 0 ? 'All' : `${selectedRuleIds.length} Selected`}
                                 </button>
                                 {isRuleFilterOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-2">
+                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-2">
                                      <div className="max-h-48 overflow-y-auto text-sm">
                                          <div onClick={() => setSelectedRuleIds([])} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.length === 0} /><span className="font-bold">All Rules</span></div>
                                          {sortedRules.map(rule => (
@@ -1164,7 +1161,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     )}
                                 </button>
                                 {isDateFilterOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
+                                <div className="absolute top-full left-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
                                     <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">From Today Onwards</button>
                                     <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">All Transactions</button>
                                     <div className="border-t border-gray-600 pt-3 space-y-2">
@@ -1649,4 +1646,6 @@ export default function App() {
         </React.Fragment>
     );
 }
+
+
 
