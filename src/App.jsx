@@ -460,6 +460,12 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         date: formatDateInTimeZone(new Date(), settings.timeZone)
     });
 
+    const clearVirtualTransactions = React.useCallback(() => {
+        if (virtualTransactions.length > 0) {
+            setVirtualTransactions([]);
+        }
+    }, [virtualTransactions]);
+
     useOutsideClick(dateFilterRef, () => setIsDateFilterOpen(false));
     useOutsideClick(ruleFilterRef, () => setIsRuleFilterOpen(false));
 
@@ -589,6 +595,27 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         if (!name || !amount || !startDate || !frequency) return;
 
         setIsLoading(true);
+
+        if (frequency === 'one-time') {
+            const newTransaction = {
+                name,
+                amount: parseFloat(amount),
+                date: startDate,
+                isPosted: false,
+                isModified: false,
+            };
+            try {
+                const transRef = await addDoc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`), newTransaction);
+                setTransactions(prev => [...prev, { id: transRef.id, ...newTransaction }]);
+                setRuleForm({ name: '', amount: '', startDate: todayString, endDate: '', frequency: 'monthly' });
+            } catch (error) {
+                console.error("Error adding one-time transaction from rule form:", error);
+            } finally {
+                setIsLoading(false);
+            }
+            return;
+        }
+
         const newRule = { 
             name, 
             amount: parseFloat(amount), 
@@ -650,38 +677,17 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         if (!name || !amount || !date) return;
 
         setIsLoading(true);
-
-        const newRule = { 
-            name, 
-            amount: parseFloat(amount), 
-            startDate: date, 
-            endDate: date, 
-            frequency: 'one-time',
-            ruleIdentifier: generateRuleIdentifier() 
+        const newTransaction = {
+            name,
+            amount: parseFloat(amount),
+            date,
+            isPosted: false,
+            isModified: false,
         };
-        
+
         try {
-            const batch = writeBatch(db);
-            const ruleRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/rules`));
-            batch.set(ruleRef, newRule);
-            
-            const newTransaction = { 
-                ruleId: ruleRef.id, 
-                name: newRule.name, 
-                ruleIdentifier: newRule.ruleIdentifier,
-                amount: newRule.amount, 
-                date: date,
-                isPosted: false,
-                isModified: false,
-            };
-            const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
-            batch.set(transRef, newTransaction);
-            
-            await batch.commit();
-
-            setRules(prev => [...prev, { id: ruleRef.id, ...newRule }]);
+            const transRef = await addDoc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`), newTransaction);
             setTransactions(prev => [...prev, { id: transRef.id, ...newTransaction }]);
-
             setIsQuickAddModalOpen(false);
             setQuickAddForm({ name: '', amount: '', date: todayString });
         } catch (error) {
@@ -765,7 +771,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 isModified: true
             };
 
-            if (updateFuture) {
+            if (updateFuture && ruleId) {
                 const originalDate = parseDateInTimeZone(originalDateStr, settings.timeZone);
                 const newDate = parseDateInTimeZone(newDateStr, settings.timeZone);
                 const dateDelta = newDate.getTime() - originalDate.getTime();
@@ -1060,7 +1066,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
 
 
     return (
-        <div className="h-screen bg-gray-900 text-gray-200 p-4 font-sans flex flex-col">
+        <div className="h-screen bg-gray-900 text-gray-200 p-1 md:p-4 font-sans flex flex-col">
             {isLoading && <div className="fixed top-0 left-0 w-full h-full bg-black/50 flex items-center justify-center z-50"><div className="text-white text-xl">Processing...</div></div>}
 
             <div className="w-full max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg flex flex-col flex-grow min-h-0">
@@ -1094,7 +1100,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 
                 {/* Ledger View */}
                 {activeTab === 'ledger' && (
-                <div className="p-4 flex flex-col flex-grow min-h-0">
+                <div className="p-2 md:p-4 flex flex-col flex-grow min-h-0">
                     <div className="md:flex justify-between items-center mb-2">
                         <h2 className="text-lg font-semibold text-white">Transactions</h2>
                         <div className="hidden md:flex gap-2 text-sm relative">
@@ -1178,7 +1184,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     Rules: {selectedRuleIds.length === 0 ? 'All' : `${selectedRuleIds.length} Selected`}
                                 </button>
                                 {isRuleFilterOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-2">
+                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-2">
                                      <div className="max-h-48 overflow-y-auto text-sm">
                                          <div onClick={() => setSelectedRuleIds([])} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.length === 0} /><span className="font-bold">All Rules</span></div>
                                          {sortedRules.map(rule => (
@@ -1204,11 +1210,13 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     )}
                                 </div>
                                 <div className={`col-span-11 grid grid-cols-11 items-center gap-2 ${!t.isVirtual && 'cursor-pointer'}`} onClick={t.isVirtual ? undefined : () => openEditModal(t)}>
-                                    <span className="font-semibold truncate text-white col-span-4 flex items-center">
-                                        {t.name}
-                                        {t.isModified && <span className="text-red-500 font-bold ml-1" title="Modified">(M)</span>}
-                                        {t.date < todayString && !t.isPosted && <span className="text-red-500 font-bold ml-1 animate-pulse" title="Past Due">(!)</span>}
-                                    </span>
+                                    <div className="font-semibold text-white col-span-4 relative pr-8">
+                                        <p className="truncate">{t.name}</p>
+                                        <div className="absolute top-0 right-0 h-full flex items-center">
+                                            {t.isModified && <span className="text-red-500 font-bold ml-1" title="Modified">(M)</span>}
+                                            {t.date < todayString && !t.isPosted && <span className="text-red-500 font-bold ml-1 animate-pulse" title="Past Due">(!)</span>}
+                                        </div>
+                                    </div>
                                     <span className="font-mono text-gray-300 col-span-2">{t.date}</span>
                                     <span className={`font-mono text-right col-span-2 ${t.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>${t.amount.toFixed(2)}</span>
                                     <div className="col-span-3 text-right pr-2 flex justify-end items-center">
