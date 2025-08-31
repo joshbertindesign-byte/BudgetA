@@ -336,9 +336,10 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                                     type="number"
                                     id="years"
                                     value={years}
-                                    onChange={(e) => setYears(Math.max(1, parseInt(e.target.value) || 1))}
+                                    onChange={(e) => setYears(Math.min(25, Math.max(1, parseInt(e.target.value) || 1)))}
                                     className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                                     min="1"
+                                    max="25"
                                 />
                             </div>
                             <div>
@@ -440,6 +441,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     const [updateFuture, setUpdateFuture] = React.useState(false);
     const [isConfirmSettingsModalOpen, setIsConfirmSettingsModalOpen] = React.useState(false);
     const [transactionsToProcess, setTransactionsToProcess] = React.useState({ toAdd: [], toDelete: [] });
+    const [isQuickAddModalOpen, setIsQuickAddModalOpen] = React.useState(false);
     
     // --- Refs for outside click ---
     const dateFilterRef = React.useRef(null);
@@ -452,6 +454,11 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         endDate: '', frequency: 'monthly'
     });
     const [localSettings, setLocalSettings] = React.useState(settings);
+    const [quickAddForm, setQuickAddForm] = React.useState({
+        name: '',
+        amount: '',
+        date: formatDateInTimeZone(new Date(), settings.timeZone)
+    });
 
     const clearVirtualTransactions = () => {
         if (virtualTransactions.length > 0) {
@@ -525,6 +532,11 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     const handleRuleFormChange = (e) => {
         const { name, value } = e.target;
         setRuleForm(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleQuickAddFormChange = (e) => {
+        const { name, value } = e.target;
+        setQuickAddForm(prev => ({ ...prev, [name]: value }));
     };
     
     const handleRuleFilterChange = (ruleId) => {
@@ -635,6 +647,53 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         }
     };
     
+    const handleQuickAddTransaction = async (e) => {
+        e.preventDefault();
+        const { name, amount, date } = quickAddForm;
+        if (!name || !amount || !date) return;
+
+        setIsLoading(true);
+
+        const newRule = { 
+            name, 
+            amount: parseFloat(amount), 
+            startDate: date, 
+            endDate: date, 
+            frequency: 'one-time',
+            ruleIdentifier: generateRuleIdentifier() 
+        };
+        
+        try {
+            const batch = writeBatch(db);
+            const ruleRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/rules`));
+            batch.set(ruleRef, newRule);
+            
+            const newTransaction = { 
+                ruleId: ruleRef.id, 
+                name: newRule.name, 
+                ruleIdentifier: newRule.ruleIdentifier,
+                amount: newRule.amount, 
+                date: date,
+                isPosted: false,
+                isModified: false,
+            };
+            const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
+            batch.set(transRef, newTransaction);
+            
+            await batch.commit();
+
+            setRules(prev => [...prev, { id: ruleRef.id, ...newRule }]);
+            setTransactions(prev => [...prev, { id: transRef.id, ...newTransaction }]);
+
+            setIsQuickAddModalOpen(false);
+            setQuickAddForm({ name: '', amount: '', date: todayString });
+        } catch (error) {
+            console.error("Error adding quick transaction:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const openDeleteModal = (rule) => {
         clearVirtualTransactions();
         setRuleToDelete(rule);
@@ -1004,10 +1063,10 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
 
 
     return (
-        <div className="min-h-screen bg-gray-900 text-gray-200 p-4 font-sans">
+        <div className="h-screen bg-gray-900 text-gray-200 p-4 font-sans flex flex-col">
             {isLoading && <div className="fixed top-0 left-0 w-full h-full bg-black/50 flex items-center justify-center z-50"><div className="text-white text-xl">Processing...</div></div>}
 
-            <div className="w-full max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg">
+            <div className="w-full max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg flex flex-col flex-grow min-h-0">
                 <div className="flex border-b border-gray-700">
                     <button 
                         onClick={() => { setActiveTab('ledger'); }}
@@ -1027,24 +1086,22 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                     >
                         Settings
                     </button>
+                    <button
+                        onClick={() => { clearVirtualTransactions(); setQuickAddForm({ name: '', amount: '', date: todayString }); setIsQuickAddModalOpen(true); }}
+                        className="py-2 px-4 text-lg font-bold text-green-400 hover:bg-gray-700/50"
+                        title="Quick Add Transaction"
+                    >
+                        +
+                    </button>
                 </div>
                 
                 {/* Ledger View */}
                 {activeTab === 'ledger' && (
-                <div className="p-4">
-                    <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
-                         <h2 className="text-lg font-semibold text-white flex-grow">Transactions</h2>
-                         <div className="text-xs text-cyan-400 mr-4">ID: 
-                            <span 
-                                onClick={() => { clearVirtualTransactions(); setNewBudgetIdInput(budgetId); setModalError(''); setIsEditBudgetIdModalOpen(true); }}
-                                className="font-mono bg-gray-700 px-1 py-0.5 rounded cursor-pointer hover:bg-gray-600 transition-colors"
-                                title="Click to change Budget ID"
-                            >
-                                {budgetId}
-                            </span>
-                        </div>
-                         <div className="flex gap-2 text-sm relative">
-                            {/* Date Filter Dropdown */}
+                <div className="p-4 flex flex-col flex-grow min-h-0">
+                    <div className="md:flex justify-between items-center mb-2">
+                        <h2 className="text-lg font-semibold text-white">Transactions</h2>
+                        <div className="hidden md:flex gap-2 text-sm relative">
+                            {/* Desktop Filters */}
                             <div ref={dateFilterRef} className="relative">
                                 <button onClick={() => setIsDateFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left relative">
                                     Date: {dateFilter.mode === 'future' ? 'Future' : dateFilter.mode === 'all' ? 'All Time' : 'Custom'}
@@ -1067,7 +1124,6 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 </div>
                                 )}
                             </div>
-                             {/* Rule Filter Dropdown */}
                             <div ref={ruleFilterRef} className="relative">
                                 <button onClick={() => setIsRuleFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left truncate">
                                     Rules: {selectedRuleIds.length === 0 ? 'All' : `${selectedRuleIds.length} Selected`}
@@ -1083,9 +1139,61 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 </div>
                                 )}
                             </div>
-                         </div>
+                        </div>
                     </div>
-                    <div className="max-h-[30rem] overflow-y-auto pr-2" onScroll={handleScroll}>
+                     <div className="flex justify-between items-center pb-2 border-b border-gray-700 mb-2">
+                        <div className="text-xs text-cyan-400">
+                            ID: 
+                            <span 
+                                onClick={() => { clearVirtualTransactions(); setNewBudgetIdInput(budgetId); setModalError(''); setIsEditBudgetIdModalOpen(true); }}
+                                className="font-mono bg-gray-700 px-1 py-0.5 rounded cursor-pointer hover:bg-gray-600 transition-colors ml-1"
+                                title="Click to change Budget ID"
+                            >
+                                {budgetId}
+                            </span>
+                        </div>
+                        <div className="flex md:hidden gap-2 text-sm relative">
+                            {/* Mobile Filters */}
+                            <div ref={dateFilterRef} className="relative">
+                                <button onClick={() => setIsDateFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left relative">
+                                    Date: {dateFilter.mode === 'future' ? 'Future' : dateFilter.mode === 'all' ? 'All Time' : 'Custom'}
+                                    {pastDueCount > 0 && (
+                                        <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-gray-800">
+                                            {pastDueCount}
+                                        </span>
+                                    )}
+                                </button>
+                                {isDateFilterOpen && (
+                                <div className="absolute top-full right-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
+                                    <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">From Today Onwards</button>
+                                    <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">All Transactions</button>
+                                    <div className="border-t border-gray-600 pt-3 space-y-2">
+                                        <p className="text-xs text-gray-400">Custom Date Range:</p>
+                                        <div><label className="text-xs">Start</label><input type="date" value={tempDateRange.start} onChange={e => setTempDateRange(p => ({...p, start: e.target.value}))} className="w-full bg-gray-800 p-1 rounded text-sm" /></div>
+                                        <div><label className="text-xs">End</label><input type="date" value={tempDateRange.end} onChange={e => setTempDateRange(p => ({...p, end: e.target.value}))} className="w-full bg-gray-800 p-1 rounded text-sm" /></div>
+                                        <button onClick={applyDateRangeFilter} className="w-full bg-cyan-600 hover:bg-cyan-700 px-3 py-1 rounded text-sm">Apply</button>
+                                    </div>
+                                </div>
+                                )}
+                            </div>
+                            <div ref={ruleFilterRef} className="relative">
+                                <button onClick={() => setIsRuleFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left truncate">
+                                    Rules: {selectedRuleIds.length === 0 ? 'All' : `${selectedRuleIds.length} Selected`}
+                                </button>
+                                {isRuleFilterOpen && (
+                                <div className="absolute top-full right-0 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-2">
+                                     <div className="max-h-48 overflow-y-auto text-sm">
+                                         <div onClick={() => setSelectedRuleIds([])} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.length === 0} /><span className="font-bold">All Rules</span></div>
+                                         {sortedRules.map(rule => (
+                                             <div key={rule.id} onClick={() => handleRuleFilterChange(rule.id)} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.includes(rule.id)} /><span className="truncate">{rule.name}</span></div>
+                                         ))}
+                                     </div>
+                                </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex-grow overflow-y-auto pr-2" onScroll={handleScroll}>
                         {allVisibleTransactions.map(t => (
                             <div key={t.id || t.key} className={`text-xs bg-gray-700/50 p-1.5 rounded mb-1 grid grid-cols-12 items-center gap-2 ${t.isVirtual ? 'opacity-60' : ''}`}>
                                 <div className="col-span-1 flex justify-center">
@@ -1189,9 +1297,10 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     type="number"
                                     id="years-setting"
                                     value={localSettings.yearsForward}
-                                    onChange={(e) => setLocalSettings(prev => ({...prev, yearsForward: Math.max(1, parseInt(e.target.value) || 1)}))}
+                                    onChange={(e) => setLocalSettings(prev => ({...prev, yearsForward: Math.min(25, Math.max(1, parseInt(e.target.value) || 1))}))}
                                     className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                                     min="1"
+                                    max="25"
                                 />
                             </div>
                             <div className="pt-4">
@@ -1257,6 +1366,48 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                         </div>
                     </div>
                  </div>
+            </Modal>
+            <Modal isOpen={isQuickAddModalOpen} onClose={() => setIsQuickAddModalOpen(false)} title="Quick Add Transaction">
+                <form onSubmit={handleQuickAddTransaction} className="space-y-4 text-sm text-white">
+                    <div>
+                        <label className="block text-xs text-gray-400">Transaction Name</label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={quickAddForm.name}
+                            onChange={handleQuickAddFormChange}
+                            className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400">Amount</label>
+                        <input
+                            type="number"
+                            name="amount"
+                            step="0.01"
+                            value={quickAddForm.amount}
+                            onChange={handleQuickAddFormChange}
+                            className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            required
+                        />
+                    </div>
+                     <div>
+                        <label className="block text-xs text-gray-400">Date</label>
+                        <input
+                            type="date"
+                            name="date"
+                            value={quickAddForm.date}
+                            onChange={handleQuickAddFormChange}
+                            className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            required
+                        />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <button type="button" onClick={() => setIsQuickAddModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button type="submit" className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Add Transaction</button>
+                    </div>
+                </form>
             </Modal>
              <Modal isOpen={isDeleteTransactionModalOpen} onClose={() => setIsDeleteTransactionModalOpen(false)} title="Confirm Deletion">
                  <div className="space-y-4 text-sm text-white">
