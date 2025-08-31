@@ -1,1378 +1,1450 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, writeBatch, deleteDoc, updateDoc } from 'firebase/firestore';
 
-function App() {
+// --- Timezone Data ---
+// A subset of IANA time zones for the dropdown
+const timezones = [
+    { name: 'UTC (UTC+0:00)', value: 'UTC' },
+    { name: 'GMT (UTC+0:00)', value: 'GMT' },
+    { name: 'US/Pacific (UTC-8:00)', value: 'US/Pacific' },
+    { name: 'US/Mountain (UTC-7:00)', value: 'US/Mountain' },
+    { name: 'US/Central (UTC-6:00)', value: 'US/Central' },
+    { name: 'US/Eastern (UTC-5:00)', value: 'US/Eastern' },
+    { name: 'Europe/London (UTC+0:00)', value: 'Europe/London' },
+    { name: 'Europe/Berlin (UTC+1:00)', value: 'Europe/Berlin' },
+    { name: 'Europe/Moscow (UTC+3:00)', value: 'Europe/Moscow' },
+    { name: 'Asia/Tokyo (UTC+9:00)', value: 'Asia/Tokyo' },
+    { name: 'Asia/Dubai (UTC+4:00)', value: 'Asia/Dubai' },
+    { name: 'Asia/Kolkata (UTC+5:30)', value: 'Asia/Kolkata' },
+    { name: 'Australia/Sydney (UTC+10:00)', value: 'Australia/Sydney' },
+    { name: 'Australia/Lord_Howe (UTC+10:30)', value: 'Australia/Lord_Howe' },
+    { name: 'Pacific/Auckland (UTC+12:00)', value: 'Pacific/Auckland' },
+    { name: 'Pacific/Honolulu (UTC-10:00)', value: 'Pacific/Honolulu' }
+];
 
-    useEffect(() => {
-        let rules = [];
-        let ledger = [];
-        let ruleToDeleteId = null;
-        let ledgerItemToEditId = null;
-        let pendingChanges = null;
-        let isFetchingVirtual = false;
-        
-        // App State
-        let selectedTimeZone = '-6'; // Default to Central Time (UTC-6)
+// --- Firebase Configuration ---
+// This configuration will be used as a fallback if one is not provided by the environment.
+const userFirebaseConfig = {
+  apiKey: "AIzaSyD3YFW6HDtV8jTz0GIRZAEPx9wTCS6T1fU",
+  authDomain: "budgeter-d4854.firebaseapp.com",
+  projectId: "budgeter-d4854",
+  storageBucket: "budgeter-d4854.appspot.com",
+  messagingSenderId: "484673918178",
+  appId: "1:484673918178:web:e9945fff52440b2a07fabb"
+};
 
-        // Filter State
-        let itemFilter = []; 
-        let balanceFilter = 'projected'; // 'projected' or 'actual'
-        let dateFilter = 'current'; // 'current' or 'previous'
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        // UI Elements
-        const addRuleForm = document.getElementById('add-rule-form');
-        const rulesList = document.getElementById('rules-list');
-        const ledgerBody = document.getElementById('ledger-body');
-        const ledgerTabContent = document.getElementById('ledger-tab-content');
-        const populateTestDataBtn = document.getElementById('populate-test-data-btn');
-        const settingsBtn = document.getElementById('settings-btn');
+// --- Helper Functions ---
 
-        // Filter UI
-        const nameHeader = document.getElementById('name-header');
-        const dateHeader = document.getElementById('date-header');
-        const balanceHeader = document.getElementById('balance-header');
-        const itemFilterDropdown = document.getElementById('item-filter-dropdown');
+/**
+ * Generates a random 7-digit alphanumeric code.
+ * @returns {string} The generated budget ID.
+ */
+const generateBudgetId = () => {
+    return Math.random().toString(36).substring(2, 9).toUpperCase();
+};
 
-        // Settings Modal
-        const settingsModal = document.getElementById('settings-modal');
-        const closeSettingsBtn = document.getElementById('close-settings-btn');
-        const timeZoneSelector = document.getElementById('time-zone-selector');
-        
-        // Rule Modals
-        const ruleDetailsModal = document.getElementById('rule-details-modal');
-        const ruleDetailsInfo = document.getElementById('rule-details-info');
-        const deleteRuleBtn = document.getElementById('delete-rule-btn');
-        const closeRuleDetailsBtn = document.getElementById('close-rule-details-btn');
-        const ruleTransactionsBtn = document.getElementById('rule-transactions-btn');
-        const ruleTransactionsModal = document.getElementById('rule-transactions-modal');
-        const ruleTransactionsList = document.getElementById('rule-transactions-list');
-        const closeRuleTransactionsBtn = document.getElementById('close-rule-transactions-btn');
-        const deleteRuleModal = document.getElementById('delete-rule-modal');
-        const confirmDeleteRuleBtn = document.getElementById('confirm-delete-rule-btn');
-        const cancelDeleteRuleBtn = document.getElementById('cancel-delete-rule-btn');
-        const modalRuleInfo = document.getElementById('modal-rule-info');
+/**
+ * Generates a random 7-digit number as a string.
+ * @returns {string} The generated rule identifier.
+ */
+const generateRuleIdentifier = () => {
+    return Math.floor(1000000 + Math.random() * 9000000).toString();
+};
 
-        // Ledger Item Modals
-        const editLedgerItemModal = document.getElementById('edit-ledger-item-modal');
-        const editModalInfo = document.getElementById('edit-modal-info');
-        const editItemAmountInput = document.getElementById('edit-item-amount');
-        const editItemDateInput = document.getElementById('edit-item-date');
-        const saveChangesBtn = document.getElementById('save-changes-btn');
-        const cancelEditBtn = document.getElementById('cancel-edit-btn');
-        const postItemBtn = document.getElementById('post-item-btn');
-        const deleteItemBtn = document.getElementById('delete-item-btn');
-        const futurePostPrompt = document.getElementById('future-post-prompt');
-        const moveAndPostBtn = document.getElementById('move-and-post-btn');
-        const deleteItemModal = document.getElementById('delete-item-modal');
-        const confirmDeleteItemBtn = document.getElementById('confirm-delete-item-btn');
-        const cancelDeleteItemBtn = document.getElementById('cancel-delete-item-btn');
-        const modalItemInfo = document.getElementById('modal-item-info');
 
-        // Series Update Modal
-        const applyFutureChangesModal = document.getElementById('apply-future-changes-modal');
-        const futureChangeSummary = document.getElementById('future-change-summary');
-        const applyToOneBtn = document.getElementById('apply-to-one-btn');
-        const applyToFutureBtn = document.getElementById('apply-to-future-btn');
-        const cancelFutureChangeBtn = document.getElementById('cancel-future-change-btn');
+/**
+ * Parses a date string according to a specific timezone.
+ * @param {string} dateString - e.g., "2025-08-31"
+ * @param {string} timeZone - IANA timezone string
+ * @returns {Date}
+ */
+const parseDateInTimeZone = (dateString, timeZone) => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    // This method robustly creates a date that represents midnight in the target timezone.
+    // It avoids issues with local system timezones interfering.
+    const dateStrForParsing = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00.000`;
+    const tempDate = new Date(dateStrForParsing);
 
-        // History Modal
-        const editItemHistoryBtn = document.getElementById('edit-item-history-btn');
-        const historyModal = document.getElementById('history-modal');
-        const historyList = document.getElementById('history-list');
-        const closeHistoryBtn = document.getElementById('close-history-btn');
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timeZone,
+        year: 'numeric', month: 'numeric', day: 'numeric',
+        hour: 'numeric', minute: 'numeric', second: 'numeric'
+    });
+    
+    const localTimeInTZ = formatter.format(tempDate);
+    return new Date(localTimeInTZ);
+};
 
-        // --- Core Functions ---
-        function saveData() {
-            localStorage.setItem('budgetRules', JSON.stringify(rules));
-            localStorage.setItem('budgetLedger', JSON.stringify(ledger));
-            localStorage.setItem('budgetSettings', JSON.stringify({ timeZone: selectedTimeZone }));
-        }
 
-        function loadData() {
-            rules = JSON.parse(localStorage.getItem('budgetRules')) || [];
-            ledger = JSON.parse(localStorage.getItem('budgetLedger')) || [];
-            const settings = JSON.parse(localStorage.getItem('budgetSettings'));
-            if (settings && settings.timeZone) {
-                selectedTimeZone = settings.timeZone;
+/**
+ * Formats a Date object into a 'YYYY-MM-DD' string for a given timezone.
+ * @param {Date} date - The date object to format.
+ * @param {string} timeZone - The IANA timezone string.
+ * @returns {string} The formatted date string.
+ */
+const formatDateInTimeZone = (date, timeZone) => {
+    if (!date || !timeZone) return '';
+    const formatter = new Intl.DateTimeFormat('en-CA', { // 'en-CA' gives YYYY-MM-DD
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: timeZone,
+    });
+    return formatter.format(date);
+};
+
+// --- Custom Hook for detecting outside clicks ---
+const useOutsideClick = (ref, callback) => {
+    React.useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (ref.current && !ref.current.contains(event.target)) {
+                callback();
             }
-            timeZoneSelector.value = selectedTimeZone;
-        }
-
-        function getTodayInSelectedTZ() {
-            const now = new Date();
-            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-            const tzOffset = parseFloat(selectedTimeZone) * 3600000;
-            const today = new Date(utc + tzOffset);
-            today.setHours(0, 0, 0, 0);
-            return today;
-        }
-        
-        function renderAll() {
-            renderRules();
-            renderLedger();
-        }
-
-        window.showTab = (tabId) => {
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-link').forEach(link => link.classList.remove('active'));
-            document.getElementById(`${tabId}-tab`).classList.add('active');
-            document.querySelector(`button[data-tabid="${tabId}"]`).classList.add('active');
         };
-        
-        function addRule(event) {
-            event.preventDefault();
-            const newRule = {
-                id: crypto.randomUUID(), name: document.getElementById('rule-name').value,
-                amount: parseFloat(document.getElementById('rule-amount').value),
-                frequency: document.getElementById('rule-frequency').value,
-                startDate: document.getElementById('rule-start-date').value,
-                endDate: document.getElementById('rule-end-date').value || null,
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [ref, callback]);
+};
+
+
+// --- React Components ---
+
+/**
+ * A modal component for user interaction.
+ * @param {object} props - Component props.
+ * @param {boolean} props.isOpen - Whether the modal is visible.
+ * @param {Function} props.onClose - Function to call on close.
+ * @param {string} props.title - Modal title.
+ * @param {React.ReactNode} props.children - Modal content.
+ */
+const Modal = ({ isOpen, onClose, title, children }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md m-4">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-white">{title}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white">&times;</button>
+                </div>
+                <div>{children}</div>
+            </div>
+        </div>
+    );
+};
+
+
+/**
+ * The initial setup screen for new or returning users.
+ * @param {object} props - Component props.
+ * @param {Function} props.onBudgetLoaded - Callback function when budget is loaded/created.
+ * @param {object} props.db - Firestore instance.
+ * @param {string} props.userId - Current user ID.
+ */
+const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
+    const [years, setYears] = React.useState(1);
+    const [timeZone, setTimeZone] = React.useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    const [budgetIdInput, setBudgetIdInput] = React.useState('');
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [error, setError] = React.useState('');
+
+    const handleCreateBudget = async () => {
+        setIsLoading(true);
+        setError('');
+        const newBudgetId = generateBudgetId();
+        try {
+            const settings = { yearsForward: years, timeZone, owner: userId, isVirtualProjectionEnabled: true };
+            const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
+            await setDoc(budgetRef, { settings });
+            onBudgetLoaded(newBudgetId, settings, [], []); // Pass empty rules/transactions
+            console.log("New budget created with ID:", newBudgetId);
+        } catch (err) {
+            console.error("Error creating budget:", err);
+            setError('Failed to create a new budget. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCreateDemoBudget = async () => {
+        setIsLoading(true);
+        setError('');
+        const newBudgetId = generateBudgetId();
+        try {
+            const settings = { yearsForward: years, timeZone, owner: userId, isVirtualProjectionEnabled: true };
+            const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
+
+            // Define sample data
+            const today = new Date();
+            const getStartDate = (monthsAgo, dayOfMonth = 1) => {
+                const date = new Date();
+                date.setMonth(date.getMonth() - monthsAgo);
+                date.setDate(dayOfMonth);
+                return formatDateInTimeZone(date, timeZone);
             };
-            rules.push(newRule);
-            generateLedgerItemsForRule(newRule);
-            itemFilter.push(newRule.id); // Automatically select new rule
-            saveData(); renderAll(); addRuleForm.reset();
-            const today = getTodayInSelectedTZ();
-            document.getElementById('rule-start-date').valueAsDate = today;
-        }
-        
-        function deleteRule(ruleId) {
-            rules = rules.filter(rule => rule.id !== ruleId);
-            ledger = ledger.filter(item => item.parentRuleId !== ruleId);
-            itemFilter = itemFilter.filter(id => id !== ruleId);
-            saveData(); renderAll();
-        }
-        
-        function generateLedgerItemsForRule(rule) {
-            const newItems = [];
-            let currentDate = new Date(rule.startDate + 'T00:00:00Z');
-            const ruleEndDate = rule.endDate ? new Date(rule.endDate + 'T00:00:00Z') : null;
-            const futureLimit = new Date(); futureLimit.setFullYear(futureLimit.getFullYear() + 1);
-            const finalEndDate = ruleEndDate && ruleEndDate < futureLimit ? ruleEndDate : futureLimit;
-            
-            if (rule.frequency === 'one-time') {
-                 if (currentDate <= finalEndDate) newItems.push(createLedgerItem(rule, currentDate));
-            } else {
-                while (currentDate <= finalEndDate) {
-                    newItems.push(createLedgerItem(rule, currentDate));
-                    switch (rule.frequency) {
-                        case 'daily': currentDate.setUTCDate(currentDate.getUTCDate() + 1); break;
-                        case 'weekly': currentDate.setUTCDate(currentDate.getUTCDate() + 7); break;
-                        case 'bi-weekly': currentDate.setUTCDate(currentDate.getUTCDate() + 14); break;
-                        case 'monthly': currentDate.setUTCMonth(currentDate.getUTCMonth() + 1); break;
-                        case 'annually': currentDate.setUTCFullYear(currentDate.getUTCFullYear() + 1); break;
+
+            const sampleRulesData = [
+                // Income
+                { name: 'Paycheck', amount: 2500, frequency: 'bi-weekly', startDate: getStartDate(3, 5) },
+                { name: 'Side Hustle Income', amount: 300, frequency: 'monthly', startDate: getStartDate(2, 20) },
+                // Housing
+                { name: 'Rent Payment', amount: -1500, frequency: 'monthly', startDate: getStartDate(3, 1) },
+                { name: 'Electricity Bill', amount: -85, frequency: 'monthly', startDate: getStartDate(3, 15) },
+                { name: 'Water & Trash', amount: -75, frequency: 'monthly', startDate: getStartDate(2, 18) },
+                { name: 'Internet Bill', amount: -65, frequency: 'monthly', startDate: getStartDate(3, 22) },
+                // Transportation
+                { name: 'Gasoline', amount: -50, frequency: 'weekly', startDate: getStartDate(3, 3) },
+                { name: 'Car Insurance', amount: -120, frequency: 'monthly', startDate: getStartDate(3, 28) },
+                { name: 'Public Transit Pass', amount: -50, frequency: 'monthly', startDate: getStartDate(2, 1) },
+                // Food
+                { name: 'Groceries', amount: -125, frequency: 'weekly', startDate: getStartDate(3, 6) },
+                { name: 'Restaurants & Dining', amount: -70, frequency: 'weekly', startDate: getStartDate(2, 2) },
+                { name: 'Coffee Shops', amount: -25, frequency: 'weekly', startDate: getStartDate(3, 1) },
+                 // Personal & Health
+                { name: 'Gym Membership', amount: -40, frequency: 'monthly', startDate: getStartDate(3, 5) },
+                { name: 'Phone Bill', amount: -75, frequency: 'monthly', startDate: getStartDate(3, 12) },
+                { name: 'Health Insurance', amount: -220, frequency: 'monthly', startDate: getStartDate(3, 1) },
+                // Subscriptions
+                { name: 'Streaming Service 1', amount: -15.99, frequency: 'monthly', startDate: getStartDate(3, 9) },
+                { name: 'Music Streaming', amount: -10.99, frequency: 'monthly', startDate: getStartDate(2, 14) },
+                { name: 'Cloud Storage', amount: -9.99, frequency: 'monthly', startDate: getStartDate(1, 19) },
+                // Debt & Savings
+                { name: 'Student Loan', amount: -250, frequency: 'monthly', startDate: getStartDate(3, 25) },
+                { name: 'Credit Card Payment', amount: -200, frequency: 'monthly', startDate: getStartDate(3, 27) },
+                { name: 'Savings Transfer', amount: -500, frequency: 'monthly', startDate: getStartDate(3, 1) },
+                { name: 'Investment Account', amount: -250, frequency: 'monthly', startDate: getStartDate(2, 15) },
+                 // Miscellaneous & One-Time
+                { name: 'Haircut', amount: -30, frequency: 'monthly', startDate: getStartDate(2, 10) },
+                { name: 'Household Supplies', amount: -40, frequency: 'monthly', startDate: getStartDate(1, 7) },
+                { name: 'New Jacket Purchase', amount: -120, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 20)), timeZone) },
+                { name: 'Concert Tickets', amount: -180, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 45)), timeZone) },
+                { name: 'Birthday Gift', amount: -50, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 10)), timeZone) },
+                { name: 'Book Purchase', amount: -22, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 5)), timeZone) },
+                { name: 'Movie Night Out', amount: -40, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 12)), timeZone) },
+            ];
+
+            const allGeneratedRules = [];
+            const allGeneratedTransactions = [];
+            const batch = writeBatch(db);
+
+            batch.set(budgetRef, { settings });
+
+            for (const ruleData of sampleRulesData) {
+                const newRule = { ...ruleData, endDate: null, ruleIdentifier: generateRuleIdentifier() };
+                const ruleRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${newBudgetId}/rules`));
+                batch.set(ruleRef, newRule);
+                const ruleWithId = { id: ruleRef.id, ...newRule };
+                allGeneratedRules.push(ruleWithId);
+
+                let currentDate = parseDateInTimeZone(newRule.startDate, timeZone);
+                const finalDate = new Date(new Date().getFullYear() + settings.yearsForward, new Date().getMonth(), new Date().getDate());
+
+                while (currentDate <= finalDate) {
+                    const newTransaction = {
+                        ruleId: ruleRef.id,
+                        name: newRule.name,
+                        ruleIdentifier: newRule.ruleIdentifier,
+                        amount: newRule.amount,
+                        date: formatDateInTimeZone(currentDate, timeZone),
+                        isPosted: false,
+                        isModified: false,
+                    };
+                    const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${newBudgetId}/transactions`));
+                    batch.set(transRef, newTransaction);
+                    allGeneratedTransactions.push({ id: transRef.id, ...newTransaction });
+
+                    if (newRule.frequency === 'one-time') break;
+
+                    switch (newRule.frequency) {
+                        case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+                        case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+                        case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
+                        case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                        case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
                     }
                 }
             }
-            ledger.push(...newItems);
+            await batch.commit();
+            onBudgetLoaded(newBudgetId, settings, allGeneratedRules, allGeneratedTransactions);
+        } catch (err) {
+            console.error("Error creating demo budget:", err);
+            setError('Failed to create a demo budget. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
-        
-        function createLedgerItem(rule, date) {
-            const newItem = {
-                id: crypto.randomUUID(), parentRuleId: rule.id, name: rule.name,
-                amount: rule.amount, date: date.toISOString().split('T')[0],
-                status: { posted: false, modified: false },
-                history: []
+    };
+
+    const handleLoadBudget = async () => {
+        if (!budgetIdInput.trim()) {
+            setError('Please enter a Budget ID.');
+            return;
+        }
+        setIsLoading(true);
+        setError('');
+        try {
+            const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, budgetIdInput.trim());
+            const budgetSnap = await getDoc(budgetRef);
+
+            if (budgetSnap.exists()) {
+                const loadedSettings = budgetSnap.data().settings;
+                // Provide a default for the new setting if it doesn't exist on older budgets
+                const settings = { isVirtualProjectionEnabled: true, ...loadedSettings };
+
+                const rulesQuery = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetIdInput.trim()}/rules`));
+                const rulesSnap = await getDocs(rulesQuery);
+                const rules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                const transactionsQuery = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetIdInput.trim()}/transactions`));
+                const transactionsSnap = await getDocs(transactionsQuery);
+                const transactions = transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                onBudgetLoaded(budgetIdInput.trim(), settings, rules, transactions);
+                 console.log("Budget loaded:", budgetIdInput.trim());
+            } else {
+                setError('Budget ID not found.');
+            }
+        } catch (err) {
+            console.error("Error loading budget:", err);
+            setError('Failed to load budget. Check the ID and your connection.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-900 text-white flex flex-col justify-center items-center p-4">
+            <div className="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-2xl">
+                <h1 className="text-3xl font-bold text-center mb-6">Predictive Budgeting</h1>
+                
+                {error && <p className="bg-red-500/20 text-red-300 p-3 rounded-md mb-4 text-center">{error}</p>}
+
+                <div className="space-y-6">
+                    {/* Create New Budget Section */}
+                    <div className="bg-gray-700/50 p-4 rounded-md">
+                        <h2 className="text-xl font-semibold mb-4 border-b border-gray-600 pb-2">Create a New Budget</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="years" className="block text-sm font-medium text-gray-300 mb-1">Years to Budget Forward</label>
+                                <input
+                                    type="number"
+                                    id="years"
+                                    value={years}
+                                    onChange={(e) => setYears(Math.max(1, parseInt(e.target.value) || 1))}
+                                    className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                                    min="1"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="timezone" className="block text-sm font-medium text-gray-300 mb-1">Your Time Zone</label>
+                                <select
+                                    id="timezone"
+                                    value={timeZone}
+                                    onChange={(e) => setTimeZone(e.target.value)}
+                                    className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                                >
+                                    {timezones.map(tz => <option key={tz.value} value={tz.value}>{tz.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <button
+                                    onClick={handleCreateBudget}
+                                    disabled={isLoading}
+                                    className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200"
+                                >
+                                    {isLoading ? 'Creating...' : 'Generate New Budget'}
+                                </button>
+                                <button
+                                    onClick={handleCreateDemoBudget}
+                                    disabled={isLoading}
+                                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200"
+                                >
+                                    {isLoading ? 'Generating...' : 'Generate Demo Budget'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Or Separator */}
+                    <div className="flex items-center">
+                        <div className="flex-grow border-t border-gray-600"></div>
+                        <span className="flex-shrink mx-4 text-gray-400">OR</span>
+                        <div className="flex-grow border-t border-gray-600"></div>
+                    </div>
+
+                    {/* Load Existing Budget Section */}
+                    <div className="bg-gray-700/50 p-4 rounded-md">
+                        <h2 className="text-xl font-semibold mb-4 border-b border-gray-600 pb-2">Load Existing Budget</h2>
+                        <div className="flex gap-2">
+                             <input
+                                type="text"
+                                placeholder="Enter 3-7 digit Budget ID"
+                                value={budgetIdInput}
+                                onChange={(e) => setBudgetIdInput(e.target.value.toUpperCase())}
+                                className="flex-grow bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                            />
+                            <button
+                                onClick={handleLoadBudget}
+                                disabled={isLoading}
+                                className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200"
+                            >
+                                {isLoading ? 'Loading...' : 'Load'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Main application dashboard view.
+ */
+const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, db, onBudgetIdChange, onSettingsChange }) => {
+    const [rules, setRules] = React.useState(initialRules);
+    const [transactions, setTransactions] = React.useState(initialTransactions);
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [activeTab, setActiveTab] = React.useState('ledger');
+    const [virtualTransactions, setVirtualTransactions] = React.useState([]);
+    const [isGeneratingVirtuals, setIsGeneratingVirtuals] = React.useState(false);
+    
+    // --- Filter State ---
+    const [dateFilter, setDateFilter] = React.useState({ mode: 'future', start: '', end: '' });
+    const [tempDateRange, setTempDateRange] = React.useState({ start: '', end: ''});
+    const [isDateFilterOpen, setIsDateFilterOpen] = React.useState(false);
+    
+    const [selectedRuleIds, setSelectedRuleIds] = React.useState([]); // empty array means all
+    const [isRuleFilterOpen, setIsRuleFilterOpen] = React.useState(false);
+    
+    // --- Modal State ---
+    const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
+    const [editingTransaction, setEditingTransaction] = React.useState(null);
+    const [editForm, setEditForm] = React.useState({ amount: '', date: '' });
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
+    const [ruleToDelete, setRuleToDelete] = React.useState(null);
+    const [isPostFutureModalOpen, setIsPostFutureModalOpen] = React.useState(false);
+    const [transactionToPost, setTransactionToPost] = React.useState(null);
+    const [isRuleDetailModalOpen, setIsRuleDetailModalOpen] = React.useState(false);
+    const [selectedRuleForDetails, setSelectedRuleForDetails] = React.useState(null);
+    const [isEditBudgetIdModalOpen, setIsEditBudgetIdModalOpen] = React.useState(false);
+    const [newBudgetIdInput, setNewBudgetIdInput] = React.useState('');
+    const [modalError, setModalError] = React.useState('');
+    const [isDeleteTransactionModalOpen, setIsDeleteTransactionModalOpen] = React.useState(false);
+    const [updateFuture, setUpdateFuture] = React.useState(false);
+    const [isConfirmSettingsModalOpen, setIsConfirmSettingsModalOpen] = React.useState(false);
+    const [transactionsToProcess, setTransactionsToProcess] = React.useState({ toAdd: [], toDelete: [] });
+    
+    // --- Refs for outside click ---
+    const dateFilterRef = React.useRef(null);
+    const ruleFilterRef = React.useRef(null);
+    
+    // --- Form State ---
+    const [ruleForm, setRuleForm] = React.useState({
+        name: '', amount: '',
+        startDate: formatDateInTimeZone(new Date(), settings.timeZone),
+        endDate: '', frequency: 'monthly'
+    });
+    const [localSettings, setLocalSettings] = React.useState(settings);
+
+    const clearVirtualTransactions = () => {
+        if (virtualTransactions.length > 0) {
+            setVirtualTransactions([]);
+        }
+    };
+
+
+    useOutsideClick(dateFilterRef, () => setIsDateFilterOpen(false));
+    useOutsideClick(ruleFilterRef, () => setIsRuleFilterOpen(false));
+
+    const todayString = React.useMemo(() => formatDateInTimeZone(new Date(), settings.timeZone), [settings.timeZone]);
+
+    const sortedRules = React.useMemo(() => [...rules].sort((a, b) => a.name.localeCompare(b.name)), [rules]);
+
+    const transactionsWithBalance = React.useMemo(() => {
+        let runningBalance = 0;
+        let postedRunningBalance = 0;
+        const sorted = [...transactions].sort((a, b) => {
+            const dateComparison = new Date(a.date) - new Date(b.date);
+            if (dateComparison !== 0) return dateComparison;
+            return b.amount - a.amount;
+        });
+
+        return sorted.map(t => {
+            runningBalance += t.amount;
+            if (t.isPosted) {
+                postedRunningBalance += t.amount;
+            }
+            return { ...t, balance: runningBalance, postedBalance: postedRunningBalance };
+        });
+    }, [transactions]);
+
+    const filteredTransactions = React.useMemo(() => {
+        let transactionsToFilter = transactionsWithBalance;
+
+        if (dateFilter.mode === 'future') {
+            transactionsToFilter = transactionsToFilter.filter(t => t.date >= todayString);
+        } else if (dateFilter.mode === 'range' && dateFilter.start && dateFilter.end) {
+            transactionsToFilter = transactionsToFilter.filter(t => t.date >= dateFilter.start && t.date <= dateFilter.end);
+        }
+
+        if (selectedRuleIds.length > 0) {
+            transactionsToFilter = transactionsToFilter.filter(t => selectedRuleIds.includes(t.ruleId));
+        }
+
+        return transactionsToFilter;
+    }, [transactionsWithBalance, dateFilter, selectedRuleIds, todayString]);
+
+    const virtualTransactionsWithBalance = React.useMemo(() => {
+        if (virtualTransactions.length === 0) return [];
+
+        const lastRealTransaction = transactionsWithBalance[transactionsWithBalance.length - 1];
+        let lastBalance = lastRealTransaction ? lastRealTransaction.balance : 0;
+        let lastPostedBalance = lastRealTransaction ? lastRealTransaction.postedBalance : 0;
+
+        return virtualTransactions.map(t => {
+            lastBalance += t.amount;
+            return { ...t, balance: lastBalance, postedBalance: lastPostedBalance };
+        });
+    }, [virtualTransactions, transactionsWithBalance]);
+
+     const allVisibleTransactions = React.useMemo(() => {
+        return [...filteredTransactions, ...virtualTransactionsWithBalance];
+    }, [filteredTransactions, virtualTransactionsWithBalance]);
+    
+    const pastDueCount = React.useMemo(() => {
+        return transactions.filter(t => t.date < todayString && !t.isPosted).length;
+    }, [transactions, todayString]);
+
+    const handleRuleFormChange = (e) => {
+        const { name, value } = e.target;
+        setRuleForm(prev => ({ ...prev, [name]: value }));
+    };
+    
+    const handleRuleFilterChange = (ruleId) => {
+        setSelectedRuleIds(prev => prev.includes(ruleId) ? prev.filter(id => id !== ruleId) : [...prev, ruleId]);
+    };
+    
+    const applyDateRangeFilter = () => {
+        if (tempDateRange.start && tempDateRange.end) {
+            setDateFilter({ mode: 'range', ...tempDateRange });
+            setIsDateFilterOpen(false);
+        } else {
+            alert("Please select both a start and end date.");
+        }
+    };
+    
+    const handleTogglePosted = async (transaction) => {
+        const isAttemptingToPost = !transaction.isPosted;
+        const isFutureTransaction = transaction.date > todayString;
+
+        if (isAttemptingToPost && isFutureTransaction) {
+            setTransactionToPost(transaction);
+            setIsPostFutureModalOpen(true);
+            return;
+        }
+
+        const newPostedState = !transaction.isPosted;
+        try {
+            const transRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`, transaction.id);
+            await updateDoc(transRef, { isPosted: newPostedState });
+            setTransactions(prev => prev.map(t => t.id === transaction.id ? { ...t, isPosted: newPostedState } : t));
+        } catch (error) {
+            console.error("Error updating posted status:", error);
+        }
+    };
+
+    const handleConfirmPostFutureTransaction = async () => {
+        if (!transactionToPost) return;
+        try {
+            const transRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`, transactionToPost.id);
+            await updateDoc(transRef, { isPosted: true, date: todayString, isModified: true });
+            setTransactions(prev => prev.map(t => t.id === transactionToPost.id ? { ...t, isPosted: true, date: todayString, isModified: true } : t));
+        } catch (error) {
+            console.error("Error moving and posting transaction:", error);
+        } finally {
+            setIsPostFutureModalOpen(false);
+            setTransactionToPost(null);
+        }
+    };
+
+    const handleAddRule = async (e) => {
+        e.preventDefault();
+        const { name, amount, startDate, endDate, frequency } = ruleForm;
+        if (!name || !amount || !startDate || !frequency) return;
+
+        setIsLoading(true);
+        const newRule = { 
+            name, 
+            amount: parseFloat(amount), 
+            startDate, 
+            endDate: endDate || null, 
+            frequency,
+            ruleIdentifier: generateRuleIdentifier() 
+        };
+
+        try {
+            const ruleRef = await addDoc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/rules`), newRule);
+            setRules(prev => [...prev, { id: ruleRef.id, ...newRule }]);
+            
+            const newTransactions = [];
+            let currentDate = parseDateInTimeZone(startDate, settings.timeZone);
+            const finalDate = endDate ? parseDateInTimeZone(endDate, settings.timeZone) : new Date(new Date().getFullYear() + settings.yearsForward, new Date().getMonth(), new Date().getDate());
+
+            while (currentDate <= finalDate) {
+                newTransactions.push({ 
+                    ruleId: ruleRef.id, 
+                    name: newRule.name, 
+                    ruleIdentifier: newRule.ruleIdentifier,
+                    amount: newRule.amount, 
+                    date: formatDateInTimeZone(currentDate, settings.timeZone),
+                    isPosted: false,
+                    isModified: false,
+                });
+                if (frequency === 'one-time') break;
+                switch (frequency) {
+                    case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+                    case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+                    case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
+                    case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                    case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
+                }
+            }
+
+            const batch = writeBatch(db);
+            const transactionsWithIds = [];
+            newTransactions.forEach(trans => {
+                 const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
+                 batch.set(transRef, trans);
+                 transactionsWithIds.push({ id: transRef.id, ...trans });
+            });
+            await batch.commit();
+
+            setTransactions(prev => [...prev, ...transactionsWithIds]);
+            setRuleForm({ name: '', amount: '', startDate: todayString, endDate: '', frequency: 'monthly' });
+        } catch (error) {
+            console.error("Error adding rule:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    const openDeleteModal = (rule) => {
+        clearVirtualTransactions();
+        setRuleToDelete(rule);
+        setIsDeleteModalOpen(true);
+    };
+
+    const openRuleDetailModal = (rule) => {
+        clearVirtualTransactions();
+        setSelectedRuleForDetails(rule);
+        setIsRuleDetailModalOpen(true);
+    };
+    
+    const handleDeleteRule = async () => {
+        if (!ruleToDelete) return;
+        setIsLoading(true);
+        try {
+            const q = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`), where("ruleId", "==", ruleToDelete.id));
+            const querySnapshot = await getDocs(q);
+            const batch = writeBatch(db);
+            querySnapshot.forEach(doc => batch.delete(doc.ref));
+            const ruleRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/rules`, ruleToDelete.id);
+            batch.delete(ruleRef);
+            await batch.commit();
+            setRules(prev => prev.filter(r => r.id !== ruleToDelete.id));
+            setTransactions(prev => prev.filter(t => t.ruleId !== ruleToDelete.id));
+        } catch (error) {
+            console.error("Error deleting rule:", error);
+        } finally {
+            setIsLoading(false);
+            setIsDeleteModalOpen(false);
+            setRuleToDelete(null);
+        }
+    };
+
+    const openEditModal = (transaction) => {
+        clearVirtualTransactions();
+        setEditingTransaction(transaction);
+        setEditForm({ amount: transaction.amount, date: transaction.date });
+        setUpdateFuture(false);
+        setIsEditModalOpen(true);
+    };
+    
+    const handleDeleteTransaction = async () => {
+        if (!editingTransaction) return;
+        setIsLoading(true);
+        try {
+            const transRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`, editingTransaction.id);
+            await deleteDoc(transRef);
+            setTransactions(prev => prev.filter(t => t.id !== editingTransaction.id));
+        } catch (error) {
+            console.error("Error deleting transaction:", error);
+        } finally {
+            setIsLoading(false);
+            setIsDeleteTransactionModalOpen(false);
+            setEditingTransaction(null);
+        }
+    };
+
+
+    const handleUpdateTransaction = async (updateFuture) => {
+        if (!editingTransaction) return;
+        setIsLoading(true);
+        const { id, ruleId, date: originalDateStr } = editingTransaction;
+        const newAmount = parseFloat(editForm.amount);
+        const newDateStr = editForm.date;
+
+        try {
+            const batch = writeBatch(db);
+            const updatePayload = {
+                amount: newAmount,
+                date: newDateStr,
+                isModified: true
             };
-            addHistoryEntry(newItem, 'Transaction created.');
-            return newItem;
-        }
-        
-        function addHistoryEntry(item, changeDescription) {
-             if (!item.history) item.history = [];
-             item.history.push({
-                 id: crypto.randomUUID(),
-                 timestamp: new Date().toISOString(),
-                 change: changeDescription,
-             });
-        }
 
-        function populateWithTestData() {
-            rules = []; ledger = [];
-            const toISODate = (d) => d.toISOString().split('T')[0];
-            const testRules = [ { name: "Paycheck", amount: 2500, frequency: "bi-weekly", startDate: toISODate(new Date('2025-09-05')) }, { name: "Rent/Mortgage", amount: -1500, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Groceries", amount: -150, frequency: "weekly", startDate: toISODate(new Date('2025-08-31')) }, { name: "Internet Bill", amount: -75, frequency: "monthly", startDate: toISODate(new Date('2025-09-10')) }, { name: "Spotify", amount: -10.99, frequency: "monthly", startDate: toISODate(new Date('2025-09-12')) }, { name: "Gasoline", amount: -60, frequency: "bi-weekly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Electricity Bill", amount: -120, frequency: "monthly", startDate: toISODate(new Date('2025-09-20')) }, { name: "Side Gig", amount: 450, frequency: "monthly", startDate: toISODate(new Date('2025-09-15')) }, { name: "Gym Membership", amount: -40, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Car Insurance", amount: -110, frequency: "monthly", startDate: toISODate(new Date('2025-09-05')) }, { name: "Phone Bill", amount: -85, frequency: "monthly", startDate: toISODate(new Date('2025-09-22')) }, { name: "Birthday Gift", amount: -75, frequency: "one-time", startDate: toISODate(new Date('2025-10-10')) }, { name: "Health Insurance", amount: -350, frequency: "monthly", startDate: toISODate(new Date('2025-09-01')) }, { name: "Coffee Shop", amount: -5, frequency: "daily", startDate: toISODate(getTodayInSelectedTZ()) }, ];
-            testRules.forEach(r => {
-                const newRule = { id: crypto.randomUUID(), ...r };
-                rules.push(newRule); generateLedgerItemsForRule(newRule);
-            });
-            itemFilter = rules.map(r => r.id);
-            saveData(); renderAll(); window.showTab('ledger');
-        }
+            if (updateFuture) {
+                const originalDate = parseDateInTimeZone(originalDateStr, settings.timeZone);
+                const newDate = parseDateInTimeZone(newDateStr, settings.timeZone);
+                const dateDelta = newDate.getTime() - originalDate.getTime();
+                const futureTransactions = transactions.filter(t => t.ruleId === ruleId && t.date >= originalDateStr);
 
-        // --- Rendering ---
-        function renderRules() {
-            rulesList.innerHTML = '';
-            if(rules.length === 0) { rulesList.innerHTML = '<li class="list-item rule-item">No rules created yet.</li>'; return; }
-            const sortedRules = [...rules].sort((a,b) => a.name.localeCompare(b.name));
-            sortedRules.forEach(rule => {
-                const li = document.createElement('li');
-                li.className = 'list-item rule-item';
-                li.dataset.id = rule.id;
-                const amountClass = rule.amount >= 0 ? 'amount-income' : 'amount-expense';
-                const formattedAmount = (rule.amount >= 0 ? '+' : '') + rule.amount.toFixed(2);
-                const frequencyText = rule.frequency.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
-                li.innerHTML = `<div><div class="item-name">${rule.name}</div><div class="rule-info">${frequencyText} from ${rule.startDate}</div></div><div class="item-amount ${amountClass}" style="text-align: right;">${formattedAmount}</div>`;
-                li.addEventListener('click', () => openRuleDetailsModal(rule.id));
-                rulesList.appendChild(li);
-            });
-        }
-
-        function updateItemFilterHeader() {
-            const headerTextElement = nameHeader.querySelector('.header-text');
-            if (itemFilter.length === rules.length) {
-                headerTextElement.innerHTML = `All Items &#9662;`;
-            } else if (itemFilter.length === 0) {
-                headerTextElement.innerHTML = `None Selected &#9662;`;
-            } else if (itemFilter.length === 1) {
-                const rule = rules.find(r => r.id === itemFilter[0]);
-                headerTextElement.innerHTML = `${rule ? rule.name : 'Item'} &#9662;`;
-            } else {
-                headerTextElement.innerHTML = `Multiple Items &#9662;`;
-            }
-        }
-        
-        function populateItemFilterDropdown() {
-            itemFilterDropdown.innerHTML = '';
-
-            const allDiv = document.createElement('div');
-            allDiv.dataset.id = 'all';
-            allDiv.textContent = 'All Items';
-            if (itemFilter.length === rules.length) {
-                allDiv.classList.add('highlighted');
-            }
-            itemFilterDropdown.appendChild(allDiv);
-
-            const hr = document.createElement('hr');
-            hr.style.margin = '4px 0';
-            hr.style.borderColor = 'var(--border-color)';
-            itemFilterDropdown.appendChild(hr);
-
-            const sortedRules = [...rules].sort((a, b) => a.name.localeCompare(b.name));
-            sortedRules.forEach(rule => {
-                const ruleDiv = document.createElement('div');
-                ruleDiv.dataset.id = rule.id;
-                ruleDiv.textContent = rule.name;
-                if (itemFilter.includes(rule.id)) {
-                    ruleDiv.classList.add('highlighted');
-                }
-                itemFilterDropdown.appendChild(ruleDiv);
-            });
-        }
-        
-        function updateUnpostedCounter() {
-            const today = getTodayInSelectedTZ();
-
-            const unpostedCount = ledger.filter(item => {
-                const itemDate = new Date(item.date + 'T00:00:00Z');
-                return !item.status.posted && itemDate < today;
-            }).length;
-
-            const counter = dateHeader.querySelector('.unposted-counter');
-            if (counter) {
-                if (unpostedCount > 0) {
-                    counter.textContent = unpostedCount;
-                    counter.style.display = 'inline-block';
-                } else {
-                    counter.style.display = 'none';
-                }
-            }
-        }
-
-        function renderLedger() {
-            updateItemFilterHeader();
-            updateUnpostedCounter();
-            ledgerBody.innerHTML = '';
-            const sortedLedger = [...ledger].sort((a, b) => new Date(a.date) - new Date(b.date) || b.amount - a.amount);
-            
-            if (sortedLedger.length === 0) { 
-                const row = ledgerBody.insertRow();
-                const cell = row.insertCell();
-                cell.colSpan = 5;
-                cell.textContent = 'Ledger is empty.';
-                cell.style.textAlign = 'center';
-                return; 
-            }
-
-            const balanceMap = new Map();
-            let runningBalance = 0;
-            sortedLedger.forEach(item => {
-                if (balanceFilter === 'projected' || item.status?.posted) {
-                    runningBalance += item.amount;
-                }
-                balanceMap.set(item.id, runningBalance);
-            });
-            
-            let itemsToDisplay = sortedLedger;
-
-            if (dateFilter === 'current') {
-                const today = getTodayInSelectedTZ();
-                itemsToDisplay = itemsToDisplay.filter(item => new Date(item.date + 'T00:00:00Z') >= today);
-            }
-            
-            itemsToDisplay = itemsToDisplay.filter(item => itemFilter.includes(item.parentRuleId));
-
-            if (itemsToDisplay.length === 0) {
-                const row = ledgerBody.insertRow();
-                const cell = row.insertCell();
-                cell.colSpan = 5;
-                cell.textContent = 'No items match the current filters.';
-                cell.style.textAlign = 'center';
-                return;
-            }
-            
-            itemsToDisplay.forEach(item => {
-                const row = ledgerBody.insertRow();
-                row.dataset.id = item.id;
-                const itemBalance = balanceMap.get(item.id);
-                row.dataset.date = item.date;
-                row.dataset.balance = itemBalance;
-                
-                row.addEventListener('click', () => openEditModal(item.id));
-                
-                const today = getTodayInSelectedTZ();
-                const itemDate = new Date(item.date + 'T00:00:00Z');
-
-                let statusEmoji = '';
-                if (item.status?.posted) {
-                    statusEmoji += '✅';
-                } else if (itemDate < today) {
-                    statusEmoji += '↩️'; // Past due and unposted
-                }
-                
-                if (item.status?.modified) statusEmoji += '📝';
-
-                const formattedAmount = (item.amount).toFixed(2);
-                const [y, m, d] = item.date.split('-');
-                const formattedDate = `${m}/${d}/${y.slice(-2)}`;
-
-                row.innerHTML = `
-                    <td class="col-status">${statusEmoji}</td>
-                    <td class="col-item" title="${item.name}">${item.name}</td>
-                    <td class="col-date">${formattedDate}</td>
-                    <td class="col-amount ${item.amount >= 0 ? 'amount-income' : 'amount-expense'}">${formattedAmount}</td>
-                    <td class="col-balance ${itemBalance < 0 ? 'balance-negative' : ''}">${itemBalance.toFixed(2)}</td>
-                `;
-            });
-        }
-
-        // --- Modal Openers and Handlers ---
-        function openRuleDetailsModal(ruleId) {
-            const rule = rules.find(r => r.id === ruleId);
-            if (!rule) return;
-            ruleToDeleteId = ruleId;
-            const formattedAmount = (rule.amount >= 0 ? '+' : '') + rule.amount.toFixed(2);
-            const frequencyText = rule.frequency.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
-            ruleDetailsInfo.innerHTML = `
-                <strong>Name:</strong> ${rule.name}<br>
-                <strong>Amount:</strong> ${formattedAmount}<br>
-                <strong>Frequency:</strong> ${frequencyText}<br>
-                <strong>Start Date:</strong> ${rule.startDate}<br>
-                ${rule.endDate ? `<strong>End Date:</strong> ${rule.endDate}` : ''}
-            `;
-            ruleDetailsModal.style.display = 'flex';
-        }
-        
-        function openEditModal(itemId) {
-            const item = ledger.find(i => i.id === itemId);
-            if (!item) return;
-            ledgerItemToEditId = itemId;
-            const parentRule = rules.find(r => r.id === item.parentRuleId);
-            const frequencyText = parentRule ? parentRule.frequency.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A';
-            editModalInfo.innerHTML = `<strong>Parent:</strong> ${parentRule?.name || 'N/A'} (${frequencyText})<br><strong>ID:</strong> ${item.id}`;
-            editItemAmountInput.value = item.amount;
-            editItemDateInput.value = item.date;
-            postItemBtn.textContent = item.status.posted ? 'Unpost Transaction' : 'Post Transaction';
-            futurePostPrompt.style.display = 'none';
-            editLedgerItemModal.style.display = 'flex';
-        }
-
-        function handleSaveChanges() {
-            const item = ledger.find(i => i.id === ledgerItemToEditId);
-            if (!item) return;
-
-            const newAmount = parseFloat(editItemAmountInput.value);
-            const newDate = editItemDateInput.value;
-            const amountChanged = item.amount !== newAmount;
-            const dateChanged = item.date !== newDate;
-
-            if (!amountChanged && !dateChanged) {
-                editLedgerItemModal.style.display = 'none';
-                return;
-            }
-            
-            pendingChanges = {
-                originalItem: JSON.parse(JSON.stringify(item)),
-                newAmount, newDate, amountChanged, dateChanged
-            };
-
-            const futureItemsExist = ledger.some(futureItem => 
-                futureItem.parentRuleId === item.parentRuleId && new Date(futureItem.date) > new Date(item.date)
-            );
-
-            if (futureItemsExist && (amountChanged || dateChanged)) {
-                let summaryText = [];
-                if(amountChanged) summaryText.push(`Amount: ${item.amount.toFixed(2)} → ${newAmount.toFixed(2)}`);
-                if(dateChanged) summaryText.push(`Date: ${item.date} → ${newDate}`);
-                futureChangeSummary.innerHTML = `<p style="color: var(--modified-color); font-size: 0.9em;">${summaryText.join('<br>')}</p>`;
-                applyFutureChangesModal.style.display = 'flex';
-            } else {
-                saveSingleChange();
-            }
-        }
-        
-        function saveSingleChange() {
-            if (!pendingChanges) return;
-            const { originalItem, newAmount, newDate, amountChanged, dateChanged } = pendingChanges;
-            const item = ledger.find(i => i.id === originalItem.id);
-            if (!item) return;
-
-            let changes = [];
-            if(amountChanged) changes.push(`Amount changed from ${originalItem.amount.toFixed(2)} to ${newAmount.toFixed(2)}.`);
-            if(dateChanged) changes.push(`Date changed from ${originalItem.date} to ${newDate}.`);
-
-            item.amount = newAmount;
-            item.date = newDate;
-            item.status.modified = true;
-            addHistoryEntry(item, changes.join(' '));
-            
-            saveData(); renderLedger();
-            editLedgerItemModal.style.display = 'none';
-            applyFutureChangesModal.style.display = 'none';
-            pendingChanges = null;
-            ledgerItemToEditId = null;
-        }
-
-        function applySeriesUpdate() {
-            if (!pendingChanges) return;
-            const { originalItem, newAmount, newDate, amountChanged, dateChanged } = pendingChanges;
-            
-            const currentItem = ledger.find(i => i.id === originalItem.id);
-            if (currentItem) {
-                currentItem.amount = newAmount;
-                currentItem.date = newDate;
-                currentItem.status.modified = true;
-                addHistoryEntry(currentItem, 'Updated as part of a series change.');
-            }
-
-            const futureItems = ledger.filter(item => 
-                item.parentRuleId === originalItem.parentRuleId && new Date(item.date) > new Date(originalItem.date)
-            );
-
-            const dateDelta = dateChanged ? 
-                (new Date(newDate).getTime() - new Date(originalItem.date).getTime()) / (1000 * 3600 * 24) : 0;
-
-            futureItems.forEach(item => {
-                let changes = [];
-                if (amountChanged) {
-                    item.amount = newAmount;
-                    changes.push(`Amount updated to ${newAmount.toFixed(2)}`);
-                }
-                if (dateChanged && dateDelta !== 0) {
-                    const originalItemDate = new Date(item.date + 'T00:00:00Z');
-                    originalItemDate.setUTCDate(originalItemDate.getUTCDate() + dateDelta);
-                    item.date = originalItemDate.toISOString().split('T')[0];
-                    changes.push(`Date shifted by ${dateDelta > 0 ? '+' : ''}${dateDelta} days`);
-                }
-                if (changes.length > 0) {
-                    item.status.modified = true;
-                    addHistoryEntry(item, `${changes.join(' & ')} as part of a series update.`);
-                }
-            });
-            
-            saveData(); renderLedger();
-            editLedgerItemModal.style.display = 'none';
-            applyFutureChangesModal.style.display = 'none';
-            pendingChanges = null;
-            ledgerItemToEditId = null;
-        }
-
-        function handlePostToggle() {
-            const item = ledger.find(i => i.id === ledgerItemToEditId);
-            if (!item) return;
-            if (item.status.posted) {
-                item.status.posted = false;
-                addHistoryEntry(item, 'Transaction un-posted.');
-                saveData(); renderLedger(); editLedgerItemModal.style.display = 'none';
-                return;
-            }
-            const today = getTodayInSelectedTZ();
-            const itemDate = new Date(item.date + 'T00:00:00Z');
-            if (itemDate > today) {
-                futurePostPrompt.style.display = 'block';
-            } else {
-                item.status.posted = true;
-                addHistoryEntry(item, 'Transaction posted.');
-                saveData(); renderLedger(); editLedgerItemModal.style.display = 'none';
-            }
-        }
-        
-        function handleDeleteItem() {
-            ledger = ledger.filter(item => item.id !== ledgerItemToEditId);
-            saveData(); renderLedger();
-            deleteItemModal.style.display = 'none';
-            editLedgerItemModal.style.display = 'none';
-            ledgerItemToEditId = null;
-        }
-
-        function handleMoveAndPost() {
-            const item = ledger.find(i => i.id === ledgerItemToEditId);
-            if (!item) return;
-            const todayStr = getTodayInSelectedTZ().toISOString().split('T')[0];
-            addHistoryEntry(item, `Date moved from ${item.date} to ${todayStr} and posted.`);
-            item.date = todayStr;
-            item.status.posted = true;
-            item.status.modified = true;
-            saveData(); renderLedger(); editLedgerItemModal.style.display = 'none';
-        }
-
-        function showHistory(itemId) {
-            const item = ledger.find(i => i.id === itemId);
-            if (!item || !item.history || item.history.length === 0) {
-                historyList.innerHTML = '<li>No history found for this transaction.</li>';
-            } else {
-                historyList.innerHTML = '';
-                [...item.history].reverse().forEach(entry => {
-                    const li = document.createElement('li');
-                    const entryDate = new Date(entry.timestamp).toLocaleString();
-                    li.innerHTML = `${entry.change}<span class="history-date">${entryDate} (ID: ${entry.id})</span>`;
-                    historyList.appendChild(li);
+                const updatedTransactions = futureTransactions.map(t => {
+                    const updatedTransaction = { ...t, amount: newAmount, isModified: true };
+                    if (dateDelta !== 0) {
+                        const currentTransDate = parseDateInTimeZone(t.date, settings.timeZone);
+                        const newTransDate = new Date(currentTransDate.getTime() + dateDelta);
+                        updatedTransaction.date = formatDateInTimeZone(newTransDate, settings.timeZone);
+                    }
+                    const transRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`, t.id);
+                    batch.update(transRef, { amount: updatedTransaction.amount, date: updatedTransaction.date, isModified: true });
+                    return updatedTransaction;
                 });
-            }
-            historyModal.style.display = 'flex';
-        }
-        
-        function showRuleTransactions(ruleId) {
-            const associatedItems = ledger.filter(item => item.parentRuleId === ruleId).sort((a,b) => new Date(a.date) - new Date(b.date));
-            ruleTransactionsList.innerHTML = '';
-            if (associatedItems.length === 0) {
-                ruleTransactionsList.innerHTML = '<li class="list-item">No transactions found for this rule.</li>';
+                setTransactions(prev => [...prev.filter(t => !futureTransactions.some(ft => ft.id === t.id)), ...updatedTransactions]);
             } else {
-                associatedItems.forEach(item => {
-                     const li = document.createElement('li');
-                     li.className = 'list-item';
-                     const amountClass = item.amount >= 0 ? 'amount-income' : 'amount-expense';
-                     const formattedAmount = (item.amount >= 0 ? '+' : '') + item.amount.toFixed(2);
-                     const formattedDate = new Date(item.date + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-                     let statusEmoji = '';
-                     if (item.status?.posted) statusEmoji += '✅';
-                     if (item.status?.modified) statusEmoji += '📝';
-                     li.innerHTML = `<div class="item-status">${statusEmoji}</div><div><div class="item-name">${formattedDate}</div><div class="item-date" style="word-break: break-all;">${item.id}</div></div><div class="item-financials"><div class="item-amount ${amountClass}">${formattedAmount}</div></div>`;
-                     li.addEventListener('click', () => showHistory(item.id));
-                     ruleTransactionsList.appendChild(li);
-                });
+                const transRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`, id);
+                batch.update(transRef, updatePayload);
+                setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updatePayload } : t));
             }
-            ruleTransactionsModal.style.display = 'flex';
+            await batch.commit();
+        } catch (error) {
+            console.error("Error updating transaction(s):", error);
+        } finally {
+            setIsLoading(false);
+            setIsEditModalOpen(false);
+            setEditingTransaction(null);
+        }
+    };
+    
+    const handleUpdateBudgetId = async () => {
+        const oldBudgetId = budgetId;
+        const newBudgetId = newBudgetIdInput.trim().toUpperCase();
+        setModalError('');
+
+        if (newBudgetId.length < 3 || newBudgetId.length > 7 || !/^[A-Z0-9]+$/.test(newBudgetId)) {
+            setModalError("ID must be 3-7 letters and numbers.");
+            return;
+        }
+        if (newBudgetId === oldBudgetId) {
+            setIsEditBudgetIdModalOpen(false);
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const newBudgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
+            const newBudgetSnap = await getDoc(newBudgetRef);
+            if (newBudgetSnap.exists()) {
+                setModalError("This Budget ID is already taken.");
+                setIsLoading(false);
+                return;
+            }
+
+            const batch = writeBatch(db);
+            const oldSettingsRef = doc(db, `artifacts/${appId}/public/data/budgets`, oldBudgetId);
+            const oldSettingsSnap = await getDoc(oldSettingsRef);
+            if (oldSettingsSnap.exists()) {
+                batch.set(newBudgetRef, oldSettingsSnap.data());
+            }
+
+            const oldRulesQuery = collection(db, `artifacts/${appId}/public/data/budgets/${oldBudgetId}/rules`);
+            const oldRulesSnap = await getDocs(oldRulesQuery);
+            oldRulesSnap.forEach(ruleDoc => {
+                const newRuleRef = doc(db, `artifacts/${appId}/public/data/budgets/${newBudgetId}/rules`, ruleDoc.id);
+                batch.set(newRuleRef, ruleDoc.data());
+                batch.delete(ruleDoc.ref);
+            });
+
+            const oldTransactionsQuery = collection(db, `artifacts/${appId}/public/data/budgets/${oldBudgetId}/transactions`);
+            const oldTransactionsSnap = await getDocs(oldTransactionsQuery);
+            oldTransactionsSnap.forEach(transDoc => {
+                const newTransRef = doc(db, `artifacts/${appId}/public/data/budgets/${newBudgetId}/transactions`, transDoc.id);
+                batch.set(newTransRef, transDoc.data());
+                batch.delete(transDoc.ref);
+            });
+
+            batch.delete(oldSettingsRef);
+            await batch.commit();
+            onBudgetIdChange(newBudgetId);
+
+            setIsEditBudgetIdModalOpen(false);
+            setNewBudgetIdInput('');
+
+        } catch (error) {
+            console.error("Error changing Budget ID:", error);
+            setModalError("Failed to change ID. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handlePrepareSettingsChange = () => {
+        clearVirtualTransactions();
+        const originalYears = settings.yearsForward;
+        const newYears = parseInt(localSettings.yearsForward);
+        
+        const toAdd = [];
+        const toDelete = [];
+
+        // REBUILT LOGIC: This section has been re-architected to prevent key errors.
+        if (newYears > originalYears) {
+            const today = new Date();
+            const currentEndDate = new Date(today.getFullYear() + originalYears, today.getMonth(), today.getDate());
+            const newEndDate = new Date(today.getFullYear() + newYears, today.getMonth(), today.getDate());
+
+            rules.forEach(rule => {
+                if (rule.frequency === 'one-time') return;
+                
+                let currentDate = parseDateInTimeZone(rule.startDate, settings.timeZone);
+                // Fast-forward to the end of the current projection to only calculate new items
+                while(currentDate <= currentEndDate) {
+                    if (rule.endDate && parseDateInTimeZone(rule.endDate, settings.timeZone) <= currentDate) break;
+                     switch (rule.frequency) {
+                        case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+                        case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+                        case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
+                        case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                        case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
+                        default: return; // Should not happen
+                    }
+                }
+
+                // Now, generate only the new transactions
+                while (currentDate <= newEndDate) {
+                    toAdd.push({ 
+                        // The stable key is now generated here for the preview.
+                        key: `${rule.id}-${formatDateInTimeZone(currentDate, settings.timeZone)}`,
+                        ruleId: rule.id, name: rule.name, ruleIdentifier: rule.ruleIdentifier,
+                        amount: rule.amount, date: formatDateInTimeZone(currentDate, settings.timeZone),
+                        isPosted: false, isModified: false
+                    });
+
+                    if (rule.endDate && parseDateInTimeZone(rule.endDate, settings.timeZone) <= currentDate) break;
+
+                    switch (rule.frequency) {
+                        case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+                        case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+                        case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
+                        case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                        case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
+                    }
+                }
+            });
+        } else if (newYears < originalYears) {
+            const today = new Date();
+            const newEndDateString = formatDateInTimeZone(new Date(today.getFullYear() + newYears, today.getMonth(), today.getDate()), settings.timeZone);
+            transactions.forEach(t => {
+                if (t.date > newEndDateString) {
+                    toDelete.push(t);
+                }
+            });
         }
         
-        function generateVirtualEntries() {
-            const allRows = ledgerBody.rows;
-            const lastRow = allRows[allRows.length - 1];
-            if (!lastRow) {
-                isFetchingVirtual = false;
-                return;
-            }
-
-            let lastDateStr = lastRow.dataset.date;
-            let lastBalance = parseFloat(lastRow.dataset.balance);
-
-            if (!lastDateStr || isNaN(lastBalance)) {
-                isFetchingVirtual = false;
-                return;
-            }
+        if(toAdd.length > 0 || toDelete.length > 0) {
+            setTransactionsToProcess({ toAdd, toDelete });
+            setIsConfirmSettingsModalOpen(true);
+        } else if (
+            localSettings.timeZone !== settings.timeZone || 
+            (localSettings.isVirtualProjectionEnabled ?? true) !== (settings.isVirtualProjectionEnabled ?? true)
+        ) { 
+            // Only timezone or toggle changed, no transaction adjustments needed
+            handleConfirmSettingsChange();
+        }
+    };
+    
+    const handleConfirmSettingsChange = async () => {
+        setIsLoading(true);
+        try {
+            const batch = writeBatch(db);
             
-            const activeRules = rules.filter(rule => itemFilter.includes(rule.id) && rule.frequency !== 'one-time');
-            if(activeRules.length === 0) {
-                isFetchingVirtual = false;
-                return;
-            }
-
-            let lastOccurrences = {};
-            activeRules.forEach(rule => {
-                const ruleItems = Array.from(allRows).filter(row => {
-                     const rowItemId = row.dataset.id;
-                     if (rowItemId.includes('-virtual-')) {
-                         return rowItemId.startsWith(rule.id);
-                     }
-                     const realItem = ledger.find(i => i.id === rowItemId);
-                     return realItem && realItem.parentRuleId === rule.id;
-                });
-                const lastItem = ruleItems[ruleItems.length - 1];
-                lastOccurrences[rule.id] = lastItem ? lastItem.dataset.date : rule.startDate;
+            transactionsToProcess.toAdd.forEach(trans => {
+                const { key, ...transData } = trans; // Remove the temporary key before saving to Firestore
+                const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
+                batch.set(transRef, transData);
             });
             
-            let potentialEntries = [];
-            
-            activeRules.forEach(rule => {
-                let lastKnownDate = new Date(lastOccurrences[rule.id] + 'T00:00:00Z');
-                let nextDate = new Date(lastKnownDate);
+            transactionsToProcess.toDelete.forEach(trans => {
+                const transRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`, trans.id);
+                batch.delete(transRef);
+            });
 
-                 switch (rule.frequency) {
-                    case 'daily': nextDate.setUTCDate(nextDate.getUTCDate() + 1); break;
-                    case 'weekly': nextDate.setUTCDate(nextDate.getUTCDate() + 7); break;
-                    case 'bi-weekly': nextDate.setUTCDate(nextDate.getUTCDate() + 14); break;
-                    case 'monthly': nextDate.setUTCMonth(nextDate.getUTCMonth() + 1); break;
-                    case 'annually': nextDate.setUTCFullYear(nextDate.getUTCFullYear() + 1); break;
+            const settingsRef = doc(db, `artifacts/${appId}/public/data/budgets`, budgetId);
+            batch.update(settingsRef, { settings: localSettings });
+
+            await batch.commit();
+
+            // Refresh all data from Firestore to ensure consistency, as we don't know the new IDs
+             const rulesQuery = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/rules`));
+             const rulesSnap = await getDocs(rulesQuery);
+             setRules(rulesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+             const transactionsQuery = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
+             const transactionsSnap = await getDocs(transactionsQuery);
+             setTransactions(transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+            onSettingsChange(localSettings);
+
+        } catch (error) {
+            console.error("Error updating settings and transactions:", error);
+        } finally {
+            setIsLoading(false);
+            setIsConfirmSettingsModalOpen(false);
+            setTransactionsToProcess({ toAdd: [], toDelete: [] });
+        }
+    };
+
+    const generateMoreVirtualTransactions = React.useCallback(() => {
+        setIsGeneratingVirtuals(true);
+    
+        const allCurrentTransactions = [...transactions, ...virtualTransactions];
+        const lastTransaction = allCurrentTransactions.length > 0
+            ? allCurrentTransactions.reduce((latest, current) => new Date(latest.date) > new Date(current.date) ? latest : current)
+            : null;
+    
+        const startDate = lastTransaction ? parseDateInTimeZone(lastTransaction.date, settings.timeZone) : new Date();
+    
+        let nextOccurrences = [];
+    
+        rules.forEach(rule => {
+            if (rule.frequency === 'one-time') return;
+    
+            let currentDate = parseDateInTimeZone(rule.startDate, settings.timeZone);
+    
+            while (currentDate <= startDate) {
+                if (rule.endDate && parseDateInTimeZone(rule.endDate, settings.timeZone) < currentDate) {
+                    return; 
                 }
-                
-                potentialEntries.push({
-                    name: rule.name,
-                    amount: rule.amount,
-                    date: nextDate.toISOString().split('T')[0],
-                    parentRuleId: rule.id
-                });
-            });
-            
-            const sortedPotentialEntries = potentialEntries.sort((a,b) => new Date(a.date) - new Date(b.date));
-            const nextEntries = [];
-            
-            for(let i = 0; i < 30; i++) {
-                if(sortedPotentialEntries.length === 0) break;
-                
-                const nextEntry = sortedPotentialEntries.shift();
-                nextEntries.push(nextEntry);
-                
-                const rule = activeRules.find(r => r.id === nextEntry.parentRuleId);
-                let nextDate = new Date(nextEntry.date + 'T00:00:00Z');
-                
                 switch (rule.frequency) {
-                    case 'daily': nextDate.setUTCDate(nextDate.getUTCDate() + 1); break;
-                    case 'weekly': nextDate.setUTCDate(nextDate.getUTCDate() + 7); break;
-                    case 'bi-weekly': nextDate.setUTCDate(nextDate.getUTCDate() + 14); break;
-                    case 'monthly': nextDate.setUTCMonth(nextDate.getUTCMonth() + 1); break;
-                    case 'annually': nextDate.setUTCFullYear(nextDate.getUTCFullYear() + 1); break;
+                    case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+                    case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+                    case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
+                    case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                    case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
                 }
-                
-                const newPotential = {
-                     name: rule.name,
-                    amount: rule.amount,
-                    date: nextDate.toISOString().split('T')[0],
-                    parentRuleId: rule.id
-                };
-                
-                sortedPotentialEntries.push(newPotential);
-                sortedPotentialEntries.sort((a,b) => new Date(a.date) - new Date(b.date));
             }
-
             
-            nextEntries.forEach(item => {
-                lastBalance += item.amount;
-                const row = ledgerBody.insertRow();
-                row.classList.add('virtual-item');
-                row.dataset.id = `${item.parentRuleId}-virtual-${item.date}`;
-                row.dataset.date = item.date;
-                row.dataset.balance = lastBalance;
-                
-                const [y, m, d] = item.date.split('-');
-                const formattedDate = `${m}/${d}/${y.slice(-2)}`;
-                const formattedAmount = item.amount.toFixed(2);
-                
-                row.innerHTML = `
-                    <td class="col-status">📈</td>
-                    <td class="col-item" title="${item.name}">${item.name}</td>
-                    <td class="col-date">${formattedDate}</td>
-                    <td class="col-amount ${item.amount >= 0 ? 'amount-income' : 'amount-expense'}">${formattedAmount}</td>
-                    <td class="col-balance ${lastBalance < 0 ? 'balance-negative' : ''}">${lastBalance.toFixed(2)}</td>
-                `;
+            if (!rule.endDate || parseDateInTimeZone(rule.endDate, settings.timeZone) >= currentDate) {
+                nextOccurrences.push({ date: new Date(currentDate.getTime()), rule });
+            }
+        });
+    
+        const newVirtuals = [];
+        for (let i = 0; i < 30; i++) {
+            if (nextOccurrences.length === 0) break;
+    
+            nextOccurrences.sort((a, b) => a.date - b.date);
+            const next = nextOccurrences.shift();
+            
+            newVirtuals.push({
+                key: crypto.randomUUID(),
+                isVirtual: true,
+                ruleId: next.rule.id,
+                name: next.rule.name,
+                ruleIdentifier: next.rule.ruleIdentifier,
+                amount: next.rule.amount,
+                date: formatDateInTimeZone(next.date, settings.timeZone),
+                isPosted: false,
             });
-            
-            isFetchingVirtual = false;
-        }
-
-        // --- Event Listeners ---
-        addRuleForm.addEventListener('submit', addRule);
-        populateTestDataBtn.addEventListener('click', populateWithTestData);
-        
-        ledgerTabContent.addEventListener('scroll', () => {
-            if (isFetchingVirtual) return;
-            const { scrollTop, scrollHeight, clientHeight } = ledgerTabContent;
-            if (scrollHeight - scrollTop - clientHeight < 100) {
-                isFetchingVirtual = true;
-                generateVirtualEntries();
+    
+            let nextCurrentDate = next.date;
+             switch (next.rule.frequency) {
+                case 'daily': nextCurrentDate.setDate(nextCurrentDate.getDate() + 1); break;
+                case 'weekly': nextCurrentDate.setDate(nextCurrentDate.getDate() + 7); break;
+                case 'bi-weekly': nextCurrentDate.setDate(nextCurrentDate.getDate() + 14); break;
+                case 'monthly': nextCurrentDate.setMonth(nextCurrentDate.getMonth() + 1); break;
+                case 'annual': nextCurrentDate.setFullYear(nextCurrentDate.getFullYear() + 1); break;
             }
-        });
-        
-        // Filter Listeners
-        dateHeader.addEventListener('click', () => {
-            dateFilter = dateFilter === 'current' ? 'previous' : 'current';
-            const headerText = dateFilter === 'current' ? 'Date Cur.' : 'Date Prev.';
-            dateHeader.querySelector('.header-text').innerHTML = `${headerText} &#9662;`;
-            renderLedger();
-        });
-        balanceHeader.addEventListener('click', () => {
-            balanceFilter = balanceFilter === 'projected' ? 'actual' : 'projected';
-            const headerText = balanceFilter === 'projected' ? 'Balance Proj.' : 'Balance Act.';
-            balanceHeader.querySelector('.header-text').innerHTML = `${headerText} &#9662;`;
-            renderLedger();
-        });
-
-        nameHeader.addEventListener('click', (event) => {
-            event.stopPropagation();
-            populateItemFilterDropdown();
-            const rect = nameHeader.getBoundingClientRect();
-            itemFilterDropdown.style.left = `${rect.left}px`;
-            itemFilterDropdown.style.top = `${rect.bottom}px`;
-            itemFilterDropdown.style.display = 'block';
-        });
-
-        itemFilterDropdown.addEventListener('click', (event) => {
-            event.stopPropagation();
-            const target = event.target.closest('div');
-            if (!target) return;
-
-            const id = target.dataset.id;
-            if (id === 'all') {
-                if (itemFilter.length === rules.length) {
-                    itemFilter = [];
-                } else {
-                    itemFilter = rules.map(r => r.id);
-                }
-            } else if (id) {
-                if (itemFilter.includes(id)) {
-                    itemFilter = itemFilter.filter(filterId => filterId !== id);
-                } else {
-                    itemFilter.push(id);
-                }
+            if (!next.rule.endDate || parseDateInTimeZone(next.rule.endDate, settings.timeZone) >= nextCurrentDate) {
+                nextOccurrences.push({ date: nextCurrentDate, rule: next.rule });
             }
-            
-            populateItemFilterDropdown();
-            renderLedger();
-        });
-        
-        window.addEventListener('click', (event) => { 
-            if (!nameHeader.contains(event.target) && !itemFilterDropdown.contains(event.target)) { 
-                itemFilterDropdown.style.display = 'none';
-            } 
-        });
+        }
+    
+        setVirtualTransactions(prev => [...prev, ...newVirtuals]);
+        setIsGeneratingVirtuals(false);
+    }, [rules, transactions, virtualTransactions, settings.timeZone, isGeneratingVirtuals]);
 
-        // Rule Modal Listeners
-        deleteRuleBtn.addEventListener('click', () => { const rule = rules.find(r => r.id === ruleToDeleteId); if (!rule) return; const formattedAmount = (rule.amount >= 0 ? '+' : '') + rule.amount.toFixed(2); modalRuleInfo.innerHTML = `<strong>${rule.name}</strong> (${formattedAmount})`; deleteRuleModal.style.display = 'flex'; });
-        closeRuleDetailsBtn.addEventListener('click', () => { ruleDetailsModal.style.display = 'none'; });
-        ruleTransactionsBtn.addEventListener('click', () => showRuleTransactions(ruleToDeleteId));
-        closeRuleTransactionsBtn.addEventListener('click', () => { ruleTransactionsModal.style.display = 'none'; });
-        confirmDeleteRuleBtn.addEventListener('click', () => { if (ruleToDeleteId) deleteRule(ruleToDeleteId); deleteRuleModal.style.display = 'none'; ruleDetailsModal.style.display = 'none'; ruleToDeleteId = null; });
-        cancelDeleteRuleBtn.addEventListener('click', () => { deleteRuleModal.style.display = 'none'; });
-        
-        // Ledger Item Modal Listeners
-        saveChangesBtn.addEventListener('click', handleSaveChanges);
-        postItemBtn.addEventListener('click', handlePostToggle);
-        moveAndPostBtn.addEventListener('click', handleMoveAndPost);
-        cancelEditBtn.addEventListener('click', () => { editLedgerItemModal.style.display = 'none'; ledgerItemToEditId = null; });
-        deleteItemBtn.addEventListener('click', () => { const item = ledger.find(i => i.id === ledgerItemToEditId); if(!item) return; modalItemInfo.innerHTML = `<strong>${item.name}</strong> on ${item.date} for ${item.amount.toFixed(2)}`; deleteItemModal.style.display = 'flex'; });
-        confirmDeleteItemBtn.addEventListener('click', handleDeleteItem);
-        cancelDeleteItemBtn.addEventListener('click', () => { deleteItemModal.style.display = 'none'; });
-        editItemHistoryBtn.addEventListener('click', () => showHistory(ledgerItemToEditId));
-        closeHistoryBtn.addEventListener('click', () => { historyModal.style.display = 'none'; });
-        
-        // Settings Modal Listeners
-        settingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex' });
-        closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'none' });
-        timeZoneSelector.addEventListener('change', (e) => {
-            selectedTimeZone = e.target.value;
-            saveData();
-            renderAll(); // Re-render to apply new time zone logic
-        });
+    const handleScroll = (e) => {
+        // Check if the feature is enabled in the current settings
+        if (!(settings.isVirtualProjectionEnabled ?? true)) return;
+
+        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+        const isAtBottom = scrollHeight - scrollTop <= clientHeight + 1; 
+
+        if (isAtBottom && !isGeneratingVirtuals ) {
+            generateMoreVirtualTransactions();
+        }
+    };
 
 
-        // Series Update Listeners
-        applyToOneBtn.addEventListener('click', saveSingleChange);
-        applyToFutureBtn.addEventListener('click', applySeriesUpdate);
-        cancelFutureChangeBtn.addEventListener('click', () => {
-            applyFutureChangesModal.style.display = 'none';
-            pendingChanges = null;
-        });
+    return (
+        <div className="min-h-screen bg-gray-900 text-gray-200 p-4 font-sans">
+            {isLoading && <div className="fixed top-0 left-0 w-full h-full bg-black/50 flex items-center justify-center z-50"><div className="text-white text-xl">Processing...</div></div>}
 
-        // --- Initialization ---
-        function init() { 
-            loadData(); 
-            itemFilter = rules.map(r => r.id); // Default to all selected
-            const today = getTodayInSelectedTZ();
-            document.getElementById('rule-start-date').valueAsDate = today; 
-            renderAll(); 
-        }
-        init();
-    }, []); // Empty dependency array means this effect runs once after the initial render
+            <div className="w-full max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg">
+                <div className="flex border-b border-gray-700">
+                    <button 
+                        onClick={() => { setActiveTab('ledger'); }}
+                        className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'ledger' ? 'bg-gray-800 text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:bg-gray-700/50'}`}
+                    >
+                        Transaction Ledger
+                    </button>
+                    <button 
+                        onClick={() => { setActiveTab('rules'); clearVirtualTransactions(); }}
+                        className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'rules' ? 'bg-gray-800 text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:bg-gray-700/50'}`}
+                    >
+                        Budget Rules
+                    </button>
+                     <button 
+                        onClick={() => { setActiveTab('settings'); clearVirtualTransactions(); }}
+                        className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'settings' ? 'bg-gray-800 text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:bg-gray-700/50'}`}
+                    >
+                        Settings
+                    </button>
+                </div>
+                
+                {/* Ledger View */}
+                {activeTab === 'ledger' && (
+                <div className="p-4">
+                    <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
+                         <h2 className="text-lg font-semibold text-white flex-grow">Transactions</h2>
+                         <div className="text-xs text-cyan-400 mr-4">ID: 
+                            <span 
+                                onClick={() => { clearVirtualTransactions(); setNewBudgetIdInput(budgetId); setModalError(''); setIsEditBudgetIdModalOpen(true); }}
+                                className="font-mono bg-gray-700 px-1 py-0.5 rounded cursor-pointer hover:bg-gray-600 transition-colors"
+                                title="Click to change Budget ID"
+                            >
+                                {budgetId}
+                            </span>
+                        </div>
+                         <div className="flex gap-2 text-sm relative">
+                            {/* Date Filter Dropdown */}
+                            <div ref={dateFilterRef} className="relative">
+                                <button onClick={() => setIsDateFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left relative">
+                                    Date: {dateFilter.mode === 'future' ? 'Future' : dateFilter.mode === 'all' ? 'All Time' : 'Custom'}
+                                    {pastDueCount > 0 && (
+                                        <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-gray-800">
+                                            {pastDueCount}
+                                        </span>
+                                    )}
+                                </button>
+                                {isDateFilterOpen && (
+                                <div className="absolute top-full right-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
+                                    <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">From Today Onwards</button>
+                                    <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">All Transactions</button>
+                                    <div className="border-t border-gray-600 pt-3 space-y-2">
+                                        <p className="text-xs text-gray-400">Custom Date Range:</p>
+                                        <div><label className="text-xs">Start</label><input type="date" value={tempDateRange.start} onChange={e => setTempDateRange(p => ({...p, start: e.target.value}))} className="w-full bg-gray-800 p-1 rounded text-sm" /></div>
+                                        <div><label className="text-xs">End</label><input type="date" value={tempDateRange.end} onChange={e => setTempDateRange(p => ({...p, end: e.target.value}))} className="w-full bg-gray-800 p-1 rounded text-sm" /></div>
+                                        <button onClick={applyDateRangeFilter} className="w-full bg-cyan-600 hover:bg-cyan-700 px-3 py-1 rounded text-sm">Apply</button>
+                                    </div>
+                                </div>
+                                )}
+                            </div>
+                             {/* Rule Filter Dropdown */}
+                            <div ref={ruleFilterRef} className="relative">
+                                <button onClick={() => setIsRuleFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left truncate">
+                                    Rules: {selectedRuleIds.length === 0 ? 'All' : `${selectedRuleIds.length} Selected`}
+                                </button>
+                                {isRuleFilterOpen && (
+                                <div className="absolute top-full right-0 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-2">
+                                     <div className="max-h-48 overflow-y-auto text-sm">
+                                         <div onClick={() => setSelectedRuleIds([])} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.length === 0} /><span className="font-bold">All Rules</span></div>
+                                         {sortedRules.map(rule => (
+                                             <div key={rule.id} onClick={() => handleRuleFilterChange(rule.id)} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.includes(rule.id)} /><span className="truncate">{rule.name}</span></div>
+                                         ))}
+                                     </div>
+                                </div>
+                                )}
+                            </div>
+                         </div>
+                    </div>
+                    <div className="max-h-[30rem] overflow-y-auto pr-2" onScroll={handleScroll}>
+                        {allVisibleTransactions.map(t => (
+                            <div key={t.id || t.key} className={`text-xs bg-gray-700/50 p-1.5 rounded mb-1 grid grid-cols-12 items-center gap-2 ${t.isVirtual ? 'opacity-60' : ''}`}>
+                                <div className="col-span-1 flex justify-center">
+                                    {!t.isVirtual && (
+                                        <input 
+                                            type="checkbox" 
+                                            checked={!!t.isPosted} 
+                                            onChange={() => handleTogglePosted(t)}
+                                            className="form-checkbox h-3.5 w-3.5 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
+                                        />
+                                    )}
+                                </div>
+                                <div className={`col-span-11 grid grid-cols-11 items-center gap-2 ${!t.isVirtual && 'cursor-pointer'}`} onClick={t.isVirtual ? undefined : () => openEditModal(t)}>
+                                    <span className="font-semibold truncate text-white col-span-4 flex items-center">
+                                        {t.name}
+                                        {t.isModified && <span className="text-red-500 font-bold ml-1" title="Modified">(M)</span>}
+                                        {t.date < todayString && !t.isPosted && <span className="text-red-500 font-bold ml-1 animate-pulse" title="Past Due">(!)</span>}
+                                    </span>
+                                    <span className="font-mono text-gray-300 col-span-2">{t.date}</span>
+                                    <span className={`font-mono text-right col-span-2 ${t.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>${t.amount.toFixed(2)}</span>
+                                    <div className="col-span-3 text-right pr-2 flex justify-end items-center">
+                                        {t.balance.toFixed(2) === t.postedBalance.toFixed(2) && !t.isVirtual ? (
+                                            <span className="text-gray-600 font-mono text-lg mr-1">[</span>
+                                        ) : (
+                                            <span className="text-transparent font-mono text-lg mr-1">[</span>
+                                        )}
+                                        <div>
+                                            <span className={`font-mono block ${t.balance >= 0 ? 'text-gray-300' : 'text-orange-400'}`} title="Overall Balance">${t.balance.toFixed(2)}</span>
+                                            <span className={`font-mono block text-xs ${t.postedBalance >= 0 ? 'text-cyan-400' : 'text-cyan-600'}`} title="Posted Items Balance">${t.postedBalance.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {isGeneratingVirtuals && <p className="text-center text-xs text-gray-500 py-2">Generating predictions...</p>}
+                        {allVisibleTransactions.length === 0 && <p className="text-center text-gray-400 mt-4">No transactions match the current filters.</p>}
+                    </div>
+                </div>
+                )}
 
-  return (
-    <>
-      <style>{`
-        :root {
-            --bg-color: #1a1a1a;
-            --text-color: #e0e0e0;
-            --primary-color: #333;
-            --secondary-color: #252525;
-            --accent-color: #388E3C;
-            --expense-color: #D32F2F;
-            --income-color: #81C784;
-            --border-color: #444;
-            --button-secondary-color: #555;
-            --modified-color: #ffc107;
-        }
+                {/* Rules View */}
+                {activeTab === 'rules' && (
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h2 className="text-lg font-semibold mb-2 border-b border-gray-700 pb-2 text-white">Add New Rule</h2>
+                         <form onSubmit={handleAddRule} className="grid grid-cols-2 gap-3 text-sm">
+                            <input name="name" value={ruleForm.name} onChange={handleRuleFormChange} placeholder="Rule Name (e.g., Rent)" className="col-span-2 bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                            <input name="amount" type="number" step="0.01" value={ruleForm.amount} onChange={handleRuleFormChange} placeholder="Amount" className="bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                            <select name="frequency" value={ruleForm.frequency} onChange={handleRuleFormChange} className="bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                                <option value="one-time">One-Time</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="bi-weekly">Bi-Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="annual">Annual</option>
+                            </select>
+                            <div className="col-span-1"><label className="text-xs text-gray-400">Start Date</label><input name="startDate" type="date" value={ruleForm.startDate} onChange={handleRuleFormChange} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                            <div className="col-span-1"><label className="text-xs text-gray-400">End Date (Optional)</label><input name="endDate" type="date" value={ruleForm.endDate} onChange={handleRuleFormChange} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                            <button type="submit" className="col-span-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded transition duration-200">Add Rule</button>
+                        </form>
+                    </div>
+                     <div>
+                        <h2 className="text-lg font-semibold mb-2 border-b border-gray-700 pb-2 text-white">Existing Rules</h2>
+                        <div className="max-h-80 overflow-y-auto pr-2">
+                            {sortedRules.map(rule => (
+                                <div key={rule.id} className="text-sm bg-gray-700/50 p-2 rounded mb-2 flex justify-between items-start">
+                                    <div className="flex-grow cursor-pointer" onClick={() => openRuleDetailModal(rule)}>
+                                        <p className="font-bold text-white flex items-baseline">
+                                            <span>{rule.name}</span>
+                                            {rule.ruleIdentifier && <span className="ml-2 text-xs font-mono text-gray-500">{rule.ruleIdentifier}</span>}
+                                        </p>
+                                        <p className="text-gray-300">${rule.amount.toFixed(2)} - {rule.frequency}</p>
+                                        <p className="text-xs text-gray-400">Starts: {rule.startDate}</p>
+                                    </div>
+                                    <button onClick={() => openDeleteModal(rule)} className="text-red-400 hover:text-red-300 font-bold p-1 rounded-full text-xs ml-2 flex-shrink-0">DELETE</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                )}
+                {/* Settings View */}
+                {activeTab === 'settings' && (
+                    <div className="p-4">
+                        <h2 className="text-lg font-semibold mb-4 border-b border-gray-700 pb-2 text-white">App Settings</h2>
+                        <div className="space-y-4 max-w-sm">
+                             <div>
+                                <label htmlFor="timezone-setting" className="block text-sm font-medium text-gray-300 mb-1">Your Time Zone</label>
+                                <select
+                                    id="timezone-setting"
+                                    value={localSettings.timeZone}
+                                    onChange={(e) => setLocalSettings(prev => ({...prev, timeZone: e.target.value}))}
+                                    className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                                >
+                                    {timezones.map(tz => <option key={tz.value} value={tz.value}>{tz.name}</option>)}
+                                </select>
+                            </div>
+                             <div>
+                                <label htmlFor="years-setting" className="block text-sm font-medium text-gray-300 mb-1">Years to Budget Forward</label>
+                                <input
+                                    type="number"
+                                    id="years-setting"
+                                    value={localSettings.yearsForward}
+                                    onChange={(e) => setLocalSettings(prev => ({...prev, yearsForward: Math.max(1, parseInt(e.target.value) || 1)}))}
+                                    className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                                    min="1"
+                                />
+                            </div>
+                            <div className="pt-4">
+                                 <label htmlFor="virtual-projection-toggle" className="block text-sm font-medium text-gray-300 mb-1">Virtual Transaction Projection</label>
+                                <div className="flex items-center bg-gray-700/50 p-2 rounded-md">
+                                   <input
+                                        type="checkbox"
+                                        id="virtual-projection-toggle"
+                                        checked={localSettings.isVirtualProjectionEnabled ?? true}
+                                        onChange={(e) => {
+                                            const isEnabled = e.target.checked;
+                                            if (!isEnabled) {
+                                                clearVirtualTransactions(); // Immediately clear if disabled
+                                            }
+                                            setLocalSettings(prev => ({...prev, isVirtualProjectionEnabled: isEnabled}))
+                                        }}
+                                        className="form-checkbox h-5 w-5 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
+                                    />
+                                    <span className="ml-3 text-sm text-gray-300">{localSettings.isVirtualProjectionEnabled ?? true ? 'Enabled' : 'Disabled'}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1 pl-1">When enabled, scroll to the bottom of the ledger to project future transactions.</p>
+                            </div>
+                            <div className="pt-2">
+                                <button
+                                    onClick={handlePrepareSettingsChange}
+                                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-200"
+                                >
+                                    Save Settings
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
 
-        html, body {
-            height: 100%;
-            overflow: hidden;
-        }
-        
-        .app-container {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            font-size: 14px;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
+            <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Transaction">
+                 <div className="text-sm text-white">
+                    <div className="pb-2 border-b border-gray-700 mb-4">
+                        <h4 className="font-bold text-lg text-white flex items-baseline">
+                           <span>{editingTransaction?.name}</span>
+                           {editingTransaction?.ruleIdentifier && <span className="ml-2 text-sm font-mono text-gray-400">{editingTransaction.ruleIdentifier}</span>}
+                        </h4>
+                        <p className="text-xs font-mono text-gray-500">ID: {editingTransaction?.id}</p>
+                    </div>
+                    <div className="space-y-4">
+                        <div><label className="block text-xs text-gray-400">Amount</label><input type="number" value={editForm.amount} onChange={e => setEditForm({...editForm, amount: e.target.value})} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                        <div><label className="block text-xs text-gray-400">Date</label><input type="date" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                        
+                        <div className="flex items-center pt-2">
+                            <input
+                                id="update-future-checkbox"
+                                type="checkbox"
+                                checked={updateFuture}
+                                onChange={(e) => setUpdateFuture(e.target.checked)}
+                                className="form-checkbox h-4 w-4 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
+                            />
+                            <label htmlFor="update-future-checkbox" className="ml-2 text-xs text-gray-300">Modify all future transactions</label>
+                        </div>
 
-        /* --- Tabs --- */
-        .tabs {
-            flex-shrink: 0;
-            display: flex;
-            background-color: var(--secondary-color);
-            border-bottom: 1px solid var(--border-color);
-            position: relative;
-        }
+                        <div className="flex justify-between items-center pt-4">
+                             <button onClick={() => {setIsEditModalOpen(false); setIsDeleteTransactionModalOpen(true);}} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Delete</button>
+                             <button onClick={() => handleUpdateTransaction(updateFuture)} className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded">Save Changes</button>
+                        </div>
+                    </div>
+                 </div>
+            </Modal>
+             <Modal isOpen={isDeleteTransactionModalOpen} onClose={() => setIsDeleteTransactionModalOpen(false)} title="Confirm Deletion">
+                 <div className="space-y-4 text-sm text-white">
+                    <p>Are you sure you want to delete this transaction?</p>
+                    <p className="text-xs text-orange-300 bg-orange-500/10 p-2 rounded-md">This action cannot be undone.</p>
+                     <div className="flex justify-end gap-3 pt-2">
+                         <button onClick={() => {setIsDeleteTransactionModalOpen(false); setIsEditModalOpen(true);}} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                         <button onClick={handleDeleteTransaction} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Confirm Delete</button>
+                     </div>
+                 </div>
+            </Modal>
+            <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Confirm Deletion">
+                 <div className="space-y-4 text-sm text-white">
+                    <p>Are you sure you want to delete the rule <span className="font-bold">{ruleToDelete?.name}</span>?</p>
+                    <p className="text-xs text-orange-300 bg-orange-500/10 p-2 rounded-md">This will permanently delete the rule and all of its associated transactions. This action cannot be undone.</p>
+                     <div className="flex justify-end gap-3 pt-2">
+                         <button onClick={() => setIsDeleteModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                         <button onClick={handleDeleteRule} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Confirm Delete</button>
+                     </div>
+                 </div>
+            </Modal>
+            <Modal isOpen={isPostFutureModalOpen} onClose={() => setIsPostFutureModalOpen(false)} title="Post Future Transaction">
+                <div className="space-y-4 text-sm text-white">
+                    <p>This transaction is dated in the future. Future transactions cannot be posted directly.</p>
+                    <p>Would you like to move this transaction's date to today (<span className="font-mono">{todayString}</span>) and post it?</p>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button onClick={() => setIsPostFutureModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button onClick={handleConfirmPostFutureTransaction} className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded">Move and Post</button>
+                    </div>
+                </div>
+            </Modal>
+            <Modal isOpen={isRuleDetailModalOpen} onClose={() => setIsRuleDetailModalOpen(false)} title={`Transactions for "${selectedRuleForDetails?.name} ${selectedRuleForDetails?.ruleIdentifier ? `(${selectedRuleForDetails.ruleIdentifier})` : ''}"`}>
+                <div className="max-h-96 overflow-y-auto pr-2 text-sm text-white">
+                    {transactions
+                        .filter(t => t.ruleId === selectedRuleForDetails?.id)
+                        .sort((a, b) => new Date(a.date) - new Date(b.date))
+                        .map(t => (
+                            <div key={t.id} className="grid grid-cols-12 gap-2 items-center p-1.5 border-b border-gray-700">
+                                <div className="col-span-3 font-mono">{t.date}</div>
+                                <div className={`col-span-2 text-right font-mono ${t.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {t.amount.toFixed(2)}
+                                </div>
+                                <div className="col-span-4 font-mono text-gray-400 text-xs truncate" title={t.id}>
+                                    {t.id}
+                                </div>
+                                <div className="col-span-3 flex items-center justify-end gap-2 text-xs">
+                                    {t.isPosted && <span className="text-cyan-400" title="Posted">✓</span>}
+                                    {t.isModified && <span className="text-red-500 font-bold" title="Modified">(M)</span>}
+                                    {t.date < todayString && !t.isPosted && <span className="text-red-500 font-bold animate-pulse" title="Past Due">(!)</span>}
+                                </div>
+                            </div>
+                        ))
+                    }
+                    {transactions.filter(t => t.ruleId === selectedRuleForDetails?.id).length === 0 && (
+                        <p className="text-center text-gray-400 p-4">No transactions found for this rule.</p>
+                    )}
+                </div>
+            </Modal>
+            <Modal isOpen={isEditBudgetIdModalOpen} onClose={() => setIsEditBudgetIdModalOpen(false)} title="Change Budget ID">
+                <div className="space-y-4 text-sm text-white">
+                    <p>Enter a new ID (3-7 characters) using letters and numbers. This will move all your data to the new ID.</p>
+                    <input 
+                        type="text"
+                        value={newBudgetIdInput}
+                        onChange={(e) => setNewBudgetIdInput(e.target.value.toUpperCase())}
+                        maxLength="7"
+                        className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+                    />
+                    {modalError && <p className="text-red-400 text-xs">{modalError}</p>}
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button onClick={() => setIsEditBudgetIdModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button onClick={handleUpdateBudgetId} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Save and Move Data</button>
+                    </div>
+                </div>
+            </Modal>
+            <Modal isOpen={isConfirmSettingsModalOpen} onClose={() => setIsConfirmSettingsModalOpen(false)} title="Confirm Settings Change">
+                <div className="text-sm text-white">
+                    {transactionsToProcess.toAdd.length > 0 && (
+                        <div className="mb-4">
+                            <p className="font-bold">The following {transactionsToProcess.toAdd.length} transactions will be ADDED:</p>
+                            <div className="max-h-32 overflow-y-auto bg-gray-700/50 p-2 rounded mt-2">
+                                {transactionsToProcess.toAdd.map((t) => <div key={t.key} className="flex justify-between text-xs"><span className="truncate">{t.name}</span><span>{t.date}</span></div>)}
+                            </div>
+                        </div>
+                    )}
+                    {transactionsToProcess.toDelete.length > 0 && (
+                         <div className="mb-4">
+                            <p className="font-bold text-red-400">The following {transactionsToProcess.toDelete.length} transactions will be DELETED:</p>
+                            <div className="max-h-32 overflow-y-auto bg-gray-700/50 p-2 rounded mt-2">
+                                {transactionsToProcess.toDelete.map((t) => <div key={t.id} className="flex justify-between text-xs"><span className="truncate">{t.name}</span><span>{t.date}</span></div>)}
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                        <button onClick={() => setIsConfirmSettingsModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button onClick={handleConfirmSettingsChange} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Confirm</button>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+    );
+};
 
-        .tab-link {
-            flex-grow: 1;
-            padding: 10px 5px;
-            cursor: pointer;
-            text-align: center;
-            background-color: transparent;
-            border: none;
-            color: var(--text-color);
-            font-size: 1em;
-            border-bottom: 2px solid transparent;
-            transition: border-color 0.3s ease;
-        }
 
-        .tab-link.active {
-            border-bottom-color: var(--accent-color);
-            font-weight: bold;
-        }
-        
-        #settings-btn {
-            position: absolute;
-            top: 50%;
-            right: 10px;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: var(--text-color);
-            font-size: 1.5em;
-            cursor: pointer;
-            padding: 0 5px;
-        }
-        
-        .app-content {
-            flex-grow: 1;
-            position: relative;
-        }
+/**
+ * The root component that manages authentication and switches between views.
+ */
+export default function App() {
+    const [authReady, setAuthReady] = React.useState(false);
+    const [db, setDb] = React.useState(null);
+    const [userId, setUserId] = React.useState(null);
 
-        /* --- Tab Content --- */
-        .tab-content {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            box-sizing: border-box;
-            padding: 8px;
-            display: none;
-        }
+    const [budgetState, setBudgetState] = React.useState({
+        id: null,
+        settings: null,
+        rules: [],
+        transactions: [],
+    });
 
-        .tab-content.active {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        #ledger-tab-content {
-             flex-grow: 1;
-             overflow-y: auto;
-             margin-top: 8px;
-        }
+    React.useEffect(() => {
+        try {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const firestore = getFirestore(app);
+            setDb(firestore);
 
-        #rules-tab {
-            overflow: hidden;
+            const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    setUserId(user.uid);
+                    setAuthReady(true);
+                } else {
+                     try {
+                        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                        if (token) {
+                            await signInWithCustomToken(auth, token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Firebase sign-in failed:", error);
+                    }
+                }
+            });
+            return () => unsubscribe();
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
         }
-        
-        #add-rule-form {
-            flex-shrink: 0;
-        }
-        
-        .rules-list-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            margin-top: 8px;
-        }
-        
-        /* --- Ledger Table & Filters --- */
-        #ledger-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-        }
+    }, []);
 
-        #ledger-table th {
-            text-align: left;
-            padding: 8px 4px;
-            font-size: 0.9em;
-            color: #aaa;
-            background-color: var(--bg-color);
-            position: sticky;
-            top: 0;
-            text-transform: uppercase;
-            border: 1px solid var(--border-color);
-        }
-        
-        #ledger-table th.clickable-header {
-            cursor: pointer;
-        }
+    const handleBudgetLoaded = (id, settings, rules, transactions) => {
+        setBudgetState({ id, settings, rules, transactions });
+    };
 
-        #ledger-table td {
-            padding: 8px 4px;
-            border-bottom: 1px solid var(--primary-color);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: var(--text-color);
-        }
-        
-        #ledger-table tr:hover {
-            background-color: var(--secondary-color);
-            cursor: pointer;
-            color: var(--text-color);
-        }
-        
-        #ledger-table tr.virtual-item {
-            opacity: 0.7;
-            pointer-events: none;
-        }
-        
-        .col-status { width: 3em; }
-        .col-item { width: 25ch; }
-        .col-date { width: 9em; }
-        .col-amount, .col-balance { text-align: left; font-family: monospace, monospace;}
-        
-        .col-balance { font-weight: bold; font-size: 1.1em; }
-        .col-amount { font-size: 0.9em; }
+    const handleBudgetIdChange = (newId) => {
+        setBudgetState(prevState => ({
+            ...prevState,
+            id: newId,
+        }));
+    };
+    
+    const handleSettingsChange = (newSettings) => {
+         setBudgetState(prevState => ({
+            ...prevState,
+            settings: newSettings,
+        }));
+    };
 
-        .unposted-counter {
-            background-color: var(--expense-color);
-            color: white;
-            border-radius: 50%;
-            padding: 1px 5px;
-            font-size: 0.8em;
-            margin-left: 6px;
-            display: inline-block;
-            vertical-align: middle;
-            line-height: 1;
-            font-weight: bold;
-        }
 
-        /* Item Filter Dropdown */
-        #item-filter-dropdown {
-            display: none;
-            position: absolute;
-            background-color: var(--secondary-color);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            z-index: 100;
-            max-height: 250px;
-            overflow-y: auto;
-            min-width: 200px;
-        }
-        
-        #item-filter-dropdown div {
-            padding: 8px 12px;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-        
-        #item-filter-dropdown div:hover {
-            background-color: var(--primary-color);
-        }
-        #item-filter-dropdown div.highlighted {
-            background-color: var(--accent-color);
-            color: white;
-            font-weight: bold;
-        }
+    if (!authReady || !db) {
+        return <div className="min-h-screen bg-gray-900 flex justify-center items-center text-white">Authenticating...</div>;
+    }
 
-        /* --- Forms & Inputs --- */
-        form {
-            background-color: var(--secondary-color);
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 10px;
-        }
+    if (!budgetState.id || !budgetState.settings) {
+        return <SetupScreen onBudgetLoaded={handleBudgetLoaded} db={db} userId={userId} />;
+    }
 
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .full-width {
-            grid-column: 1 / -1;
-        }
-
-        label {
-            margin-bottom: 4px;
-            font-size: 0.8em;
-            color: #aaa;
-        }
-
-        input, select {
-            background-color: var(--primary-color);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 8px;
-            font-size: 1em;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        input[type="date"]::-webkit-calendar-picker-indicator {
-            filter: invert(1);
-        }
-        
-        button.submit-btn {
-            grid-column: 1 / -1;
-            background-color: var(--accent-color);
-            color: white;
-            border: none;
-            padding: 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1em;
-            margin-top: 8px;
-        }
-        
-        #populate-test-data-btn {
-             background-color: var(--button-secondary-color);
-             margin-top: 4px;
-        }
-
-        /* --- Lists (For Modals) --- */
-        .data-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .list-item {
-            display: grid;
-            grid-template-columns: auto 1fr auto; 
-            gap: 8px;
-            align-items: center;
-            padding: 8px 4px;
-            border-bottom: 1px solid var(--primary-color);
-            background-color: transparent;
-            color: var(--text-color);
-        }
-        
-        #rule-transactions-list .list-item:hover, .list-item.rule-item:hover {
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-        }
-        
-        #rule-transactions-list .list-item {
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .list-item.rule-item {
-            grid-template-columns: 1fr auto;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .item-status {
-            font-size: 1.1em;
-            width: 2.5em; /* Space for emojis */
-            text-align: center;
-            white-space: nowrap; /* Prevent emojis from stacking */
-        }
-        
-        .item-name {
-            font-weight: bold;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
-        .item-date {
-            font-size: 0.85em;
-            color: #aaa;
-        }
-        
-        .item-financials { text-align: right; }
-        .item-amount { font-weight: bold; font-family: monospace, monospace; font-size: 1.1em; flex-shrink: 0; }
-        .rule-info { font-size: 0.85em; color: #aaa; }
-
-        .amount-expense { color: var(--expense-color); }
-        .amount-income { color: var(--income-color); }
-        .balance-negative { color: var(--expense-color); }
-
-        /* --- Modals --- */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            display: none; justify-content: center; align-items: center;
-            z-index: 1000;
-        }
-        
-        .modal-content {
-            position: relative;
-            background-color: var(--secondary-color);
-            padding: 20px; border-radius: 5px; text-align: left;
-            max-width: 90%; width: 400px;
-        }
-        
-        .modal-content.centered-text { text-align: center; }
-
-        .modal-buttons {
-            margin-top: 20px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .modal-buttons.centered { justify-content: center; }
-
-        .modal-btn {
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            border: none;
-            font-size: 0.9em;
-        }
-        
-        #delete-item-btn {
-            margin-right: auto;
-        }
-        
-        .btn-danger { background-color: var(--expense-color); color: white; }
-        .btn-secondary { background-color: var(--border-color); color: var(--text-color); }
-        .btn-primary { background-color: var(--accent-color); color: white; }
-        .btn-warning { background-color: var(--modified-color); color: #1a1a1a; }
-        
-        #edit-modal-info, #modal-item-info, #rule-details-info { 
-            font-size: 0.9em; color: #aaa; word-break: break-all; margin-bottom: 15px; 
-            line-height: 1.5;
-        }
-        #modal-item-info { font-size: 1em; text-align: center; }
-        
-        .future-post-prompt {
-            display: none; background-color: var(--primary-color);
-            padding: 10px; border-radius: 4px; margin-top: 15px; text-align: center;
-        }
-        
-        .history-btn {
-            position: absolute; top: 10px; right: 10px;
-            background: none; border: none; font-size: 1.5em;
-            color: var(--text-color); cursor: pointer;
-        }
-        
-        #history-modal .modal-content, #rule-transactions-modal .modal-content {
-            height: 70vh; display: flex; flex-direction: column;
-        }
-        
-        #history-list, #rule-transactions-list {
-            flex-grow: 1; overflow-y: auto; list-style: none;
-            padding: 0; margin-top: 15px;
-            font-size: 0.9em;
-        }
-        
-        #history-list li, #rule-transactions-list li {
-            padding: 6px 0; border-bottom: 1px solid var(--primary-color);
-        }
-        
-        #history-list .history-date { display: block; font-size: 0.8em; color: #aaa; }
-      `}</style>
-      <div className="app-container">
-          <nav className="tabs">
-              <button className="tab-link active" data-tabid="ledger" onClick={() => window.showTab('ledger')}>Ledger</button>
-              <button className="tab-link" data-tabid="rules" onClick={() => window.showTab('rules')}>Rules</button>
-              <button id="settings-btn">⚙️</button>
-          </nav>
-
-          <main className="app-content">
-              <div id="ledger-tab" className="tab-content active">
-                  <div id="ledger-tab-content">
-                      <table id="ledger-table">
-                          <thead>
-                              <tr>
-                                  <th className="col-status"></th>
-                                  <th id="name-header" className="col-item clickable-header"><span className="header-text">Item &#9662;</span></th>
-                                  <th id="date-header" className="col-date clickable-header">
-                                      <span className="header-text">Date Cur. &#9662;</span><span className="unposted-counter" style={{display: 'none'}}></span>
-                                  </th>
-                                  <th className="col-amount">Amount</th>
-                                  <th id="balance-header" className="col-balance clickable-header"><span className="header-text">Balance Proj. &#9662;</span></th>
-                              </tr>
-                          </thead>
-                          <tbody id="ledger-body"></tbody>
-                      </table>
-                  </div>
-                  <div id="item-filter-dropdown"></div>
-              </div>
-              <div id="rules-tab" className="tab-content">
-                  <form id="add-rule-form">
-                      <div className="form-grid">
-                          <div className="form-group full-width"><label htmlFor="rule-name">Name</label><input type="text" id="rule-name" required placeholder="e.g., Paycheck, Rent" /></div>
-                          <div className="form-group"><label htmlFor="rule-amount">Amount</label><input type="number" step="0.01" id="rule-amount" required placeholder="e.g., -1200 or 2500" /></div>
-                          <div className="form-group"><label htmlFor="rule-frequency">Frequency</label><select id="rule-frequency" required><option value="one-time">One Time</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="bi-weekly">Bi-Weekly</option><option value="monthly">Monthly</option><option value="annually">Annually</option></select></div>
-                          <div className="form-group"><label htmlFor="rule-start-date">Start Date</label><input type="date" id="rule-start-date" required /></div>
-                          <div className="form-group"><label htmlFor="rule-end-date">End Date (Optional)</label><input type="date" id="rule-end-date" /></div>
-                           <button type="submit" className="submit-btn">Add Rule</button>
-                           <button type="button" id="populate-test-data-btn" className="submit-btn">Load Sample Data</button>
-                      </div>
-                  </form>
-                  <div className="rules-list-container"><ul id="rules-list" className="data-list"></ul></div>
-              </div>
-          </main>
-      </div>
-      
-      {/* Settings Modal */}
-      <div id="settings-modal" className="modal-overlay">
-          <div className="modal-content">
-              <h3>Settings</h3>
-              <div className="form-group">
-                  <label htmlFor="time-zone-selector">Time Zone</label>
-                  <select id="time-zone-selector">
-                      <option value="-12">(UTC-12) International Date Line West</option>
-                      <option value="-11">(UTC-11) Samoa</option>
-                      <option value="-10">(UTC-10) Hawaii</option>
-                      <option value="-9">(UTC-9) Alaska</option>
-                      <option value="-8">(UTC-8) Pacific Time</option>
-                      <option value="-7">(UTC-7) Mountain Time</option>
-                      <option value="-6">(UTC-6) Central Time</option>
-                      <option value="-5">(UTC-5) Eastern Time</option>
-                      <option value="-4">(UTC-4) Atlantic Time</option>
-                      <option value="-3">(UTC-3) Buenos Aires</option>
-                      <option value="0">(UTC 0) London, GMT</option>
-                      <option value="1">(UTC+1) Berlin, Paris</option>
-                      <option value="2">(UTC+2) Athens, Cairo</option>
-                      <option value="3">(UTC+3) Moscow</option>
-                      <option value="5.5">(UTC+5:30) India</option>
-                      <option value="8">(UTC+8) Beijing, Perth</option>
-                      <option value="9">(UTC+9) Tokyo, Seoul</option>
-                      <option value="10">(UTC+10) Sydney</option>
-                      <option value="12">(UTC+12) New Zealand</option>
-                  </select>
-              </div>
-              <div className="modal-buttons">
-                  <button id="close-settings-btn" className="modal-btn btn-secondary">Close</button>
-              </div>
-          </div>
-      </div>
-      
-      {/* Rule Details Modal */}
-      <div id="rule-details-modal" className="modal-overlay">
-          <div className="modal-content">
-              <button id="rule-transactions-btn" className="history-btn">🕮</button>
-              <h3>Rule Details</h3>
-              <div id="rule-details-info"></div>
-              <div className="modal-buttons">
-                  <button id="delete-rule-btn" className="modal-btn btn-danger">Delete Rule</button>
-                  <button id="close-rule-details-btn" className="modal-btn btn-secondary">Close</button>
-              </div>
-          </div>
-      </div>
-
-      {/* Rule Transactions List Modal */}
-      <div id="rule-transactions-modal" className="modal-overlay">
-          <div className="modal-content">
-              <h3>Associated Transactions</h3>
-              <ul id="rule-transactions-list" className="data-list"></ul>
-              <div className="modal-buttons">
-                   <button id="close-rule-transactions-btn" className="modal-btn btn-secondary">Close</button>
-              </div>
-          </div>
-      </div>
-
-      {/* Delete Rule Confirmation Modal */}
-      <div id="delete-rule-modal" className="modal-overlay">
-          <div className="modal-content centered-text">
-              <p>Are you sure you want to delete this rule and all its ledger entries?</p>
-              <div id="modal-rule-info"></div>
-              <div className="modal-buttons centered">
-                  <button id="confirm-delete-rule-btn" className="modal-btn btn-danger">Delete</button>
-                  <button id="cancel-delete-rule-btn" className="modal-btn btn-secondary">Cancel</button>
-              </div>
-          </div>
-      </div>
-
-      {/* Edit Ledger Item Modal */}
-      <div id="edit-ledger-item-modal" className="modal-overlay">
-          <div className="modal-content">
-              <button id="edit-item-history-btn" className="history-btn">🕮</button>
-              <div id="edit-modal-info"></div>
-              <form id="edit-item-form">
-                  <div className="form-grid">
-                      <div className="form-group"><label htmlFor="edit-item-amount">Amount</label><input type="number" step="0.01" id="edit-item-amount" required /></div>
-                      <div className="form-group"><label htmlFor="edit-item-date">Date</label><input type="date" id="edit-item-date" required /></div>
-                  </div>
-              </form>
-              <div className="future-post-prompt" id="future-post-prompt">
-                  <p>Future transactions cannot be posted.</p>
-                  <button id="move-and-post-btn" className="modal-btn btn-warning">Move to Today & Post</button>
-              </div>
-              <div className="modal-buttons">
-                  <button id="delete-item-btn" className="modal-btn btn-danger">Delete</button>
-                  <button id="post-item-btn" className="modal-btn btn-primary">Post</button>
-                  <button id="cancel-edit-btn" className="modal-btn btn-secondary">Cancel</button>
-                  <button id="save-changes-btn" className="modal-btn btn-primary">Save Changes</button>
-              </div>
-          </div>
-      </div>
-      
-      {/* Delete Item Confirmation Modal */}
-      <div id="delete-item-modal" className="modal-overlay">
-          <div className="modal-content centered-text">
-              <p>Are you sure you want to permanently delete this transaction?</p>
-              <div id="modal-item-info"></div>
-              <div className="modal-buttons centered">
-                  <button id="confirm-delete-item-btn" className="modal-btn btn-danger">Delete</button>
-                  <button id="cancel-delete-item-btn" className="modal-btn btn-secondary">Cancel</button>
-              </div>
-          </div>
-      </div>
-
-      {/* Apply Future Changes Modal */}
-      <div id="apply-future-changes-modal" className="modal-overlay">
-          <div className="modal-content centered-text">
-              <p>Apply this change to future transactions in this series?</p>
-              <div id="future-change-summary" style={{margin: '10px 0'}}></div>
-              <div className="modal-buttons centered">
-                  <button id="apply-to-one-btn" className="modal-btn btn-secondary">Just This One</button>
-                  <button id="apply-to-future-btn" className="modal-btn btn-primary">All Future</button>
-                  <button id="cancel-future-change-btn" className="modal-btn btn-secondary">Cancel</button>
-              </div>
-          </div>
-      </div>
-
-      {/* History Modal */}
-      <div id="history-modal" className="modal-overlay">
-          <div className="modal-content">
-              <h3>Transaction History</h3>
-              <ul id="history-list"></ul>
-              <div className="modal-buttons">
-                   <button id="close-history-btn" className="modal-btn btn-secondary">Close</button>
-              </div>
-          </div>
-      </div>
-    </>
-  );
+    return <AppDashboard 
+        budgetId={budgetState.id}
+        settings={budgetState.settings}
+        initialRules={budgetState.rules}
+        initialTransactions={budgetState.transactions}
+        db={db}
+        onBudgetIdChange={handleBudgetIdChange}
+        onSettingsChange={handleSettingsChange}
+    />;
 }
 
-export default App;
+
+
+
 
