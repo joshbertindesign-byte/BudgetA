@@ -411,47 +411,47 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white flex flex-col justify-center items-center p-4">
-            <div className="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-2xl">
-                <h1 className="text-3xl font-bold text-center mb-6">Predictive Budgeting</h1>
+        <div className="min-h-screen bg-gray-900 text-white flex flex-col justify-center items-center p-2 sm:p-4">
+            <div className="w-full max-w-md bg-gray-800 p-4 sm:p-6 rounded-lg shadow-2xl">
+                <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4">Predictive Budgeting</h1>
                 
-                {error && <p className="bg-red-500/20 text-red-300 p-3 rounded-md mb-4 text-center">{error}</p>}
+                {error && <p className="bg-red-500/20 text-red-300 p-2 rounded-md mb-3 text-center text-sm">{error}</p>}
 
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {/* VIRTUAL DATE PICKER */}
-                    <div className="bg-gray-700/50 p-4 rounded-md">
-                        <label htmlFor="virtualDate" className="block text-sm font-medium text-gray-300 mb-1">Set a Virtual "Today" (Optional)</label>
+                    <div className="bg-gray-700/50 p-3 rounded-md">
+                        <label htmlFor="virtualDate" className="block text-sm font-medium text-gray-300 mb-1">Set Virtual "Today" (Optional)</label>
                         <input
                             type="date"
                             id="virtualDate"
                             value={virtualDate}
                             onChange={(e) => setVirtualDate(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                            className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
                         />
-                         <p className="text-xs text-gray-400 mt-2">If set, all calculations will use this date instead of the real current date.</p>
+                         <p className="text-xs text-gray-400 mt-2">If set, all calculations will use this date.</p>
                     </div>
 
                     {/* Create New Budget Section */}
-                    <div className="bg-gray-700/50 p-4 rounded-md">
-                        <h2 className="text-xl font-semibold mb-4 border-b border-gray-600 pb-2">Create a New Budget</h2>
-                        <div className="space-y-4">
+                    <div className="bg-gray-700/50 p-3 rounded-md">
+                        <h2 className="text-lg font-semibold mb-3 border-b border-gray-600 pb-2">Create a New Budget</h2>
+                        <div className="space-y-3">
                             <div>
                                 <label htmlFor="years" className="block text-sm font-medium text-gray-300 mb-1">Years to Budget Forward</label>
-                                <div className="flex items-center justify-between bg-gray-900 border border-gray-600 rounded-md px-3 py-2">
+                                <div className="flex items-center justify-between bg-gray-900 border border-gray-600 rounded-md px-3 py-1.5">
                                     <button
                                         type="button"
                                         onClick={() => setYears(y => Math.max(1, y - 1))}
                                         disabled={years <= 1}
-                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600"
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600 px-2"
                                     >
                                         -
                                     </button>
-                                    <span className="font-semibold">{years} Year{years > 1 ? 's' : ''}</span>
+                                    <span className="font-semibold text-sm">{years} Year{years > 1 ? 's' : ''}</span>
                                     <button
                                         type="button"
                                         onClick={() => setYears(y => Math.min(10, y + 1))}
                                         disabled={years >= 10}
-                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600"
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600 px-2"
                                     >
                                         +
                                     </button>
@@ -463,23 +463,23 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                                     id="timezone"
                                     value={timeZone}
                                     onChange={(e) => setTimeZone(e.target.value)}
-                                    className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                                    className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                                 >
                                     {timezones.map(tz => <option key={tz.value} value={tz.value}>{tz.name}</option>)}
                                 </select>
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-2 pt-1">
                                 <button
                                     onClick={handleCreateBudget}
                                     disabled={isLoading}
-                                    className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200"
+                                    className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
                                 >
                                     {isLoading ? 'Creating...' : 'Generate New Budget'}
                                 </button>
                                 <button
                                     onClick={handleCreateDemoBudget}
                                     disabled={isLoading}
-                                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200"
+                                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
                                 >
                                     {isLoading ? 'Generating...' : 'Generate Demo Budget'}
                                 </button>
@@ -490,25 +490,25 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                     {/* Or Separator */}
                     <div className="flex items-center">
                         <div className="flex-grow border-t border-gray-600"></div>
-                        <span className="flex-shrink mx-4 text-gray-400">OR</span>
+                        <span className="flex-shrink mx-4 text-xs text-gray-400">OR</span>
                         <div className="flex-grow border-t border-gray-600"></div>
                     </div>
 
                     {/* Load Existing Budget Section */}
-                    <div className="bg-gray-700/50 p-4 rounded-md">
-                        <h2 className="text-xl font-semibold mb-4 border-b border-gray-600 pb-2">Load Existing Budget</h2>
+                    <div className="bg-gray-700/50 p-3 rounded-md">
+                        <h2 className="text-lg font-semibold mb-3 border-b border-gray-600 pb-2">Load Existing Budget</h2>
                         <div className="flex gap-2">
                              <input
                                 type="text"
                                 placeholder="Enter 3-7 digit Budget ID"
                                 value={budgetIdInput}
                                 onChange={(e) => setBudgetIdInput(e.target.value.toUpperCase())}
-                                className="flex-grow bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                className="flex-grow bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
                             />
                             <button
                                 onClick={handleLoadBudget}
                                 disabled={isLoading}
-                                className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200"
+                                className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
                             >
                                 {isLoading ? 'Loading...' : 'Load'}
                             </button>
@@ -2012,4 +2012,5 @@ export default function App() {
         </React.Fragment>
     );
 }
+
 
