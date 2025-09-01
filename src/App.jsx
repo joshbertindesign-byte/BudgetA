@@ -160,7 +160,15 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
         setError('');
         const newBudgetId = generateBudgetId();
         try {
-            const settings = { yearsForward: years, timeZone, owner: userId, isVirtualProjectionEnabled: true };
+            const settings = { 
+                yearsForward: years, 
+                timeZone, 
+                owner: userId, 
+                isVirtualProjectionEnabled: true,
+                isSliceEnabled: false,
+                sliceStartDate: null,
+                sliceFrequency: 'monthly',
+            };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
             await setDoc(budgetRef, { settings });
             onBudgetLoaded(newBudgetId, settings, [], []); // Pass empty rules/transactions
@@ -178,7 +186,15 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
         setError('');
         const newBudgetId = generateBudgetId();
         try {
-            const settings = { yearsForward: years, timeZone, owner: userId, isVirtualProjectionEnabled: true };
+            const settings = { 
+                yearsForward: years, 
+                timeZone, 
+                owner: userId, 
+                isVirtualProjectionEnabled: true,
+                isSliceEnabled: false,
+                sliceStartDate: null,
+                sliceFrequency: 'monthly',
+            };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
 
             // Define sample data
@@ -295,7 +311,13 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
             if (budgetSnap.exists()) {
                 const loadedSettings = budgetSnap.data().settings;
                 // Provide a default for the new setting if it doesn't exist on older budgets
-                const settings = { isVirtualProjectionEnabled: true, ...loadedSettings };
+                const settings = { 
+                    isVirtualProjectionEnabled: true,
+                    isSliceEnabled: false,
+                    sliceStartDate: null,
+                    sliceFrequency: 'monthly',
+                    ...loadedSettings 
+                };
 
                 const rulesQuery = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetIdInput.trim()}/rules`));
                 const rulesSnap = await getDocs(rulesQuery);
@@ -332,15 +354,25 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                         <div className="space-y-4">
                             <div>
                                 <label htmlFor="years" className="block text-sm font-medium text-gray-300 mb-1">Years to Budget Forward</label>
-                                <input
-                                    type="number"
-                                    id="years"
-                                    value={years}
-                                    onChange={(e) => setYears(Math.min(25, Math.max(1, parseInt(e.target.value) || 1)))}
-                                    className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-                                    min="1"
-                                    max="25"
-                                />
+                                <div className="flex items-center justify-between bg-gray-900 border border-gray-600 rounded-md px-3 py-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setYears(y => Math.max(1, y - 1))}
+                                        disabled={years <= 1}
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600"
+                                    >
+                                        -
+                                    </button>
+                                    <span className="font-semibold">{years} Year{years > 1 ? 's' : ''}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setYears(y => Math.min(10, y + 1))}
+                                        disabled={years >= 10}
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600"
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <label htmlFor="timezone" className="block text-sm font-medium text-gray-300 mb-1">Your Time Zone</label>
@@ -442,10 +474,17 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     const [isConfirmSettingsModalOpen, setIsConfirmSettingsModalOpen] = React.useState(false);
     const [transactionsToProcess, setTransactionsToProcess] = React.useState({ toAdd: [], toDelete: [] });
     const [isQuickAddModalOpen, setIsQuickAddModalOpen] = React.useState(false);
+    const [isSliceSetupModalOpen, setIsSliceSetupModalOpen] = React.useState(false);
+    const [isSliceSelectorOpen, setIsSliceSelectorOpen] = React.useState(false);
+
+    // --- Slice State ---
+    const [isSliceViewActive, setIsSliceViewActive] = React.useState(false);
+    const [currentSliceIndex, setCurrentSliceIndex] = React.useState(0);
     
     // --- Refs for outside click ---
     const dateFilterRef = React.useRef(null);
     const ruleFilterRef = React.useRef(null);
+    const sliceSelectorRef = React.useRef(null);
     
     // --- Form State ---
     const [ruleForm, setRuleForm] = React.useState({
@@ -468,6 +507,8 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
 
     useOutsideClick(dateFilterRef, () => setIsDateFilterOpen(false));
     useOutsideClick(ruleFilterRef, () => setIsRuleFilterOpen(false));
+    useOutsideClick(sliceSelectorRef, () => setIsSliceSelectorOpen(false));
+
 
     const todayString = React.useMemo(() => formatDateInTimeZone(new Date(), settings.timeZone), [settings.timeZone]);
 
@@ -501,7 +542,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         }
 
         if (selectedRuleIds.length > 0) {
-            transactionsToFilter = transactionsToFilter.filter(t => selectedRuleIds.includes(t.ruleId));
+            transactionsToFilter = transactionsToFilter.filter(t => t.ruleId && selectedRuleIds.includes(t.ruleId));
         }
 
         return transactionsToFilter;
@@ -520,13 +561,99 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         });
     }, [virtualTransactions, transactionsWithBalance]);
 
+    const calculateSliceRange = React.useCallback((sliceIndex) => {
+        const { sliceStartDate, sliceFrequency, timeZone } = settings;
+        if (!sliceStartDate || !sliceFrequency) return null;
+
+        let sliceStart = parseDateInTimeZone(sliceStartDate, timeZone);
+        
+        // Adjust start date based on index
+        switch (sliceFrequency) {
+            case 'weekly': sliceStart.setDate(sliceStart.getDate() + (sliceIndex * 7)); break;
+            case 'bi-weekly': sliceStart.setDate(sliceStart.getDate() + (sliceIndex * 14)); break;
+            case 'monthly': sliceStart.setMonth(sliceStart.getMonth() + sliceIndex); break;
+            case 'annually': sliceStart.setFullYear(sliceStart.getFullYear() + sliceIndex); break;
+        }
+
+        let sliceEnd = new Date(sliceStart.getTime());
+        
+        // Calculate end date
+        switch (sliceFrequency) {
+            case 'weekly': sliceEnd.setDate(sliceEnd.getDate() + 7 - 1); break;
+            case 'bi-weekly': sliceEnd.setDate(sliceEnd.getDate() + 14 - 1); break;
+            case 'monthly': sliceEnd.setMonth(sliceEnd.getMonth() + 1); sliceEnd.setDate(sliceEnd.getDate() - 1); break;
+            case 'annually': sliceEnd.setFullYear(sliceEnd.getFullYear() + 1); sliceEnd.setDate(sliceEnd.getDate() - 1); break;
+        }
+
+        return {
+            start: formatDateInTimeZone(sliceStart, timeZone),
+            end: formatDateInTimeZone(sliceEnd, timeZone)
+        };
+    }, [settings]);
+
+     const slicedTransactions = React.useMemo(() => {
+        if (!isSliceViewActive) return [];
+
+        const range = calculateSliceRange(currentSliceIndex);
+        if (!range) return [];
+
+        let transactionsInSlice = transactionsWithBalance.filter(t => t.date >= range.start && t.date <= range.end);
+        
+        if (selectedRuleIds.length > 0) {
+            transactionsInSlice = transactionsInSlice.filter(t => t.ruleId && selectedRuleIds.includes(t.ruleId));
+        }
+
+        return transactionsInSlice;
+    }, [isSliceViewActive, currentSliceIndex, calculateSliceRange, transactionsWithBalance, selectedRuleIds]);
+
+    const availableSlices = React.useMemo(() => {
+        if (!settings.isSliceEnabled || !settings.sliceStartDate || transactions.length === 0) {
+            return [];
+        }
+    
+        const sortedTransactions = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const lastTransactionDate = parseDateInTimeZone(sortedTransactions[sortedTransactions.length - 1].date, settings.timeZone);
+        
+        const slices = [];
+        let sliceIndex = 0;
+    
+        while (true) {
+            const range = calculateSliceRange(sliceIndex);
+            if (!range) break;
+    
+            const currentSliceStartDate = parseDateInTimeZone(range.start, settings.timeZone);
+    
+            // Stop generating slices if their start date is way past the last transaction
+            if (currentSliceStartDate > lastTransactionDate) {
+                break;
+            }
+    
+            const hasTransactions = transactions.some(t => t.date >= range.start && t.date <= range.end);
+    
+            if (hasTransactions) {
+                slices.push({ index: sliceIndex, range });
+            }
+            
+            sliceIndex++;
+            // Safeguard to prevent potential infinite loops, e.g., if date logic had a bug.
+            if (sliceIndex > 3000) break; 
+        }
+    
+        return slices;
+    }, [transactions, settings, calculateSliceRange]);
+
+
      const allVisibleTransactions = React.useMemo(() => {
+        if (isSliceViewActive) {
+            return slicedTransactions;
+        }
+
         const filteredVirtuals = selectedRuleIds.length > 0
-            ? virtualTransactionsWithBalance.filter(t => selectedRuleIds.includes(t.ruleId))
+            ? virtualTransactionsWithBalance.filter(t => t.ruleId && selectedRuleIds.includes(t.ruleId))
             : virtualTransactionsWithBalance;
 
         return [...filteredTransactions, ...filteredVirtuals];
-    }, [filteredTransactions, virtualTransactionsWithBalance, selectedRuleIds]);
+    }, [filteredTransactions, virtualTransactionsWithBalance, selectedRuleIds, slicedTransactions, isSliceViewActive]);
     
     const pastDueCount = React.useMemo(() => {
         return transactions.filter(t => t.date < todayString && !t.isPosted).length;
@@ -934,9 +1061,12 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             setIsConfirmSettingsModalOpen(true);
         } else if (
             localSettings.timeZone !== settings.timeZone || 
-            (localSettings.isVirtualProjectionEnabled ?? true) !== (settings.isVirtualProjectionEnabled ?? true)
+            (localSettings.isVirtualProjectionEnabled ?? true) !== (settings.isVirtualProjectionEnabled ?? true) ||
+            localSettings.isSliceEnabled !== settings.isSliceEnabled ||
+            localSettings.sliceStartDate !== settings.sliceStartDate ||
+            localSettings.sliceFrequency !== settings.sliceFrequency
         ) { 
-            // Only timezone or toggle changed, no transaction adjustments needed
+            // Only non-transactional settings changed
             handleConfirmSettingsChange();
         }
     };
@@ -1054,7 +1184,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
 
     const handleScroll = (e) => {
         // Check if the feature is enabled in the current settings
-        if (!(settings.isVirtualProjectionEnabled ?? true)) return;
+        if (!(settings.isVirtualProjectionEnabled ?? true) || isSliceViewActive) return;
 
         const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
         const isAtBottom = scrollHeight - scrollTop <= clientHeight + 1; 
@@ -1062,6 +1192,11 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         if (isAtBottom && !isGeneratingVirtuals ) {
             generateMoreVirtualTransactions();
         }
+    };
+
+    const handleSliceSetupSave = () => {
+        setIsSliceSetupModalOpen(false);
+        handlePrepareSettingsChange();
     };
 
 
@@ -1103,6 +1238,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 <div className="p-2 md:p-4 flex flex-col flex-grow min-h-0">
                     <div className="md:flex justify-between items-center mb-2">
                         <h2 className="text-lg font-semibold text-white">Transactions</h2>
+                        {!isSliceViewActive && (
                         <div className="hidden md:flex gap-2 text-sm relative">
                             {/* Desktop Filters */}
                             <div ref={dateFilterRef} className="relative">
@@ -1143,6 +1279,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 )}
                             </div>
                         </div>
+                        )}
                     </div>
                      <div className="flex justify-between items-center pb-2 border-b border-gray-700 mb-2">
                         <div className="text-xs text-cyan-400">
@@ -1155,6 +1292,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 {budgetId}
                             </span>
                         </div>
+                        {!isSliceViewActive && (
                         <div className="flex md:hidden gap-2 text-sm relative">
                             {/* Mobile Filters */}
                             <div ref={dateFilterRef} className="relative">
@@ -1167,7 +1305,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     )}
                                 </button>
                                 {isDateFilterOpen && (
-                                <div className="absolute top-full left-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
+                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
                                     <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">From Today Onwards</button>
                                     <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">All Transactions</button>
                                     <div className="border-t border-gray-600 pt-3 space-y-2">
@@ -1195,7 +1333,59 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 )}
                             </div>
                         </div>
+                        )}
                     </div>
+                     {settings.isSliceEnabled && (
+                        <div className="flex justify-between items-center py-2 border-b border-gray-700 mb-2 text-sm">
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="slice-toggle"
+                                    checked={isSliceViewActive}
+                                    onChange={(e) => {
+                                        clearVirtualTransactions();
+                                        setIsSliceViewActive(e.target.checked);
+                                    }}
+                                    className="form-checkbox h-4 w-4 text-indigo-500 bg-gray-800 border-gray-600 rounded focus:ring-indigo-500"
+                                />
+                                <label htmlFor="slice-toggle" className="font-medium text-white">
+                                    View in Slices
+                                </label>
+                            </div>
+                            {isSliceViewActive && (
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setCurrentSliceIndex(i => i - 1)} className="bg-gray-700 p-1 rounded-full text-white hover:bg-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
+                                     <div ref={sliceSelectorRef} className="relative">
+                                        <button 
+                                            onClick={() => setIsSliceSelectorOpen(prev => !prev)} 
+                                            className="font-mono text-xs text-center w-48 bg-gray-700 hover:bg-gray-600 rounded p-1"
+                                        >
+                                            {`${calculateSliceRange(currentSliceIndex)?.start || ''} - ${calculateSliceRange(currentSliceIndex)?.end || ''}`}
+                                        </button>
+                                        {isSliceSelectorOpen && (
+                                            <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-20">
+                                                <div className="max-h-60 overflow-y-auto text-sm p-2">
+                                                    {availableSlices.map(slice => (
+                                                        <div 
+                                                            key={slice.index} 
+                                                            onClick={() => {
+                                                                setCurrentSliceIndex(slice.index);
+                                                                setIsSliceSelectorOpen(false);
+                                                            }}
+                                                            className="p-2 rounded hover:bg-gray-600 cursor-pointer text-center"
+                                                        >
+                                                            {`${slice.range.start} - ${slice.range.end}`}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={() => setCurrentSliceIndex(i => i + 1)} className="bg-gray-700 p-1 rounded-full text-white hover:bg-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <div className="flex-grow overflow-y-auto pr-2" onScroll={handleScroll}>
                         {allVisibleTransactions.map(t => (
                             <div key={t.id || t.key} className={`text-xs bg-gray-700/50 p-1.5 rounded mb-1 grid grid-cols-12 items-center gap-2 ${t.isVirtual ? 'opacity-60' : ''}`}>
@@ -1298,15 +1488,25 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                             </div>
                              <div>
                                 <label htmlFor="years-setting" className="block text-sm font-medium text-gray-300 mb-1">Years to Budget Forward</label>
-                                <input
-                                    type="number"
-                                    id="years-setting"
-                                    value={localSettings.yearsForward}
-                                    onChange={(e) => setLocalSettings(prev => ({...prev, yearsForward: Math.min(25, Math.max(1, parseInt(e.target.value) || 1))}))}
-                                    className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-                                    min="1"
-                                    max="25"
-                                />
+                                 <div className="flex items-center justify-between bg-gray-700 border border-gray-600 rounded-md px-3 py-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setLocalSettings(prev => ({...prev, yearsForward: Math.max(1, prev.yearsForward - 1)}))}
+                                        disabled={localSettings.yearsForward <= 1}
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600"
+                                    >
+                                        -
+                                    </button>
+                                    <span className="font-semibold">{localSettings.yearsForward} Year{localSettings.yearsForward > 1 ? 's' : ''}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setLocalSettings(prev => ({...prev, yearsForward: Math.min(10, prev.yearsForward + 1)}))}
+                                        disabled={localSettings.yearsForward >= 10}
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600"
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
                             <div className="pt-4">
                                  <label htmlFor="virtual-projection-toggle" className="block text-sm font-medium text-gray-300 mb-1">Virtual Transaction Projection</label>
@@ -1317,16 +1517,28 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                         checked={localSettings.isVirtualProjectionEnabled ?? true}
                                         onChange={(e) => {
                                             const isEnabled = e.target.checked;
-                                            if (!isEnabled) {
-                                                clearVirtualTransactions(); // Immediately clear if disabled
+                                            if (isEnabled) {
+                                                setLocalSettings(prev => ({...prev, isVirtualProjectionEnabled: true, isSliceEnabled: false }))
+                                            } else {
+                                                clearVirtualTransactions();
+                                                setLocalSettings(prev => ({...prev, isVirtualProjectionEnabled: false}))
                                             }
-                                            setLocalSettings(prev => ({...prev, isVirtualProjectionEnabled: isEnabled}))
                                         }}
                                         className="form-checkbox h-5 w-5 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
                                     />
                                     <span className="ml-3 text-sm text-gray-300">{localSettings.isVirtualProjectionEnabled ?? true ? 'Enabled' : 'Disabled'}</span>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-1 pl-1">When enabled, scroll to the bottom of the ledger to project future transactions.</p>
+                            </div>
+                            <div className="pt-2">
+                                 <label className="block text-sm font-medium text-gray-300 mb-1">Budget Slices</label>
+                                <button
+                                    onClick={() => setIsSliceSetupModalOpen(true)}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition duration-200"
+                                >
+                                    {settings.isSliceEnabled ? 'Modify Slices' : 'Set Up Slices'}
+                                </button>
+                                <p className="text-xs text-gray-500 mt-1 pl-1">View your budget in discrete periods (e.g., week by week).</p>
                             </div>
                             <div className="pt-2">
                                 <button
@@ -1361,8 +1573,11 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 checked={updateFuture}
                                 onChange={(e) => setUpdateFuture(e.target.checked)}
                                 className="form-checkbox h-4 w-4 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
+                                disabled={!editingTransaction?.ruleId}
                             />
-                            <label htmlFor="update-future-checkbox" className="ml-2 text-xs text-gray-300">Modify all future transactions</label>
+                            <label htmlFor="update-future-checkbox" className={`ml-2 text-xs ${!editingTransaction?.ruleId ? 'text-gray-500' : 'text-gray-300'}`}>
+                                Modify all future transactions { !editingTransaction?.ruleId && "(N/A for one-time)" }
+                            </label>
                         </div>
 
                         <div className="flex justify-between items-center pt-4">
@@ -1413,6 +1628,56 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                         <button type="submit" className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Add Transaction</button>
                     </div>
                 </form>
+            </Modal>
+            <Modal isOpen={isSliceSetupModalOpen} onClose={() => setIsSliceSetupModalOpen(false)} title="Setup Budget Slices">
+                 <div className="space-y-4 text-sm text-white">
+                    <div className="flex items-center bg-gray-700/50 p-2 rounded-md">
+                        <input
+                            type="checkbox"
+                            id="slice-enabled-toggle"
+                            checked={localSettings.isSliceEnabled}
+                            onChange={(e) => {
+                                const isEnabled = e.target.checked;
+                                if(isEnabled) {
+                                    setLocalSettings(prev => ({...prev, isSliceEnabled: true, isVirtualProjectionEnabled: false}))
+                                } else {
+                                    setLocalSettings(prev => ({...prev, isSliceEnabled: false}))
+                                }
+                            }}
+                            className="form-checkbox h-5 w-5 text-indigo-500 bg-gray-800 border-gray-600 rounded focus:ring-indigo-500"
+                        />
+                        <span className="ml-3 text-sm text-gray-300">{localSettings.isSliceEnabled ? 'Slices Enabled' : 'Slices Disabled'}</span>
+                    </div>
+                    {localSettings.isSliceEnabled && (
+                        <>
+                        <div>
+                            <label className="block text-xs text-gray-400">Slice Start Date</label>
+                            <input
+                                type="date"
+                                value={localSettings.sliceStartDate || ''}
+                                onChange={e => setLocalSettings(prev => ({...prev, sliceStartDate: e.target.value}))}
+                                className="w-full bg-gray-700 p-2 rounded border border-gray-600"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400">Slice Frequency</label>
+                             <select value={localSettings.sliceFrequency} onChange={e => setLocalSettings(prev => ({...prev, sliceFrequency: e.target.value}))} className="w-full bg-gray-700 p-2 rounded border border-gray-600">
+                                <option value="weekly">Weekly</option>
+                                <option value="bi-weekly">Bi-Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="annually">Annually</option>
+                            </select>
+                        </div>
+                        </>
+                    )}
+                    <p className="text-xs text-orange-300 bg-orange-500/10 p-2 rounded-md">
+                        Note: Enabling Budget Slices will disable the Virtual Transaction Projection feature.
+                    </p>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <button type="button" onClick={() => setIsSliceSetupModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button type="button" onClick={handleSliceSetupSave} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded">Save Slice Settings</button>
+                    </div>
+                 </div>
             </Modal>
              <Modal isOpen={isDeleteTransactionModalOpen} onClose={() => setIsDeleteTransactionModalOpen(false)} title="Confirm Deletion">
                  <div className="space-y-4 text-sm text-white">
@@ -1654,6 +1919,4 @@ export default function App() {
         </React.Fragment>
     );
 }
-
-
 
