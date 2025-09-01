@@ -168,6 +168,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 isSliceEnabled: false,
                 sliceStartDate: null,
                 sliceFrequency: 'monthly',
+                lastBackfillDate: formatDateInTimeZone(new Date(), timeZone)
             };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
             await setDoc(budgetRef, { settings });
@@ -194,6 +195,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 isSliceEnabled: false,
                 sliceStartDate: null,
                 sliceFrequency: 'monthly',
+                lastBackfillDate: formatDateInTimeZone(new Date(), timeZone)
             };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
 
@@ -328,6 +330,8 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 
                 // --- Backfill Logic ---
                 const today = new Date();
+                const todayString = formatDateInTimeZone(today, settings.timeZone);
+                const lastBackfill = settings.lastBackfillDate ? parseDateInTimeZone(settings.lastBackfillDate, settings.timeZone) : new Date(today.getFullYear() - 10, 0, 1); // Fallback for old budgets
                 const projectionEndDate = new Date(today.getFullYear() + settings.yearsForward, today.getMonth(), today.getDate());
                 const existingTransactionKeys = new Set(transactions.map(t => `${t.ruleId}-${t.date}`));
                 const transactionsToBackfill = [];
@@ -336,6 +340,18 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                     if (rule.frequency === 'one-time') return;
 
                     let currentDate = parseDateInTimeZone(rule.startDate, settings.timeZone);
+                    
+                    // Fast-forward currentDate to be on or after the last backfill date to avoid re-calculating the past
+                    while (currentDate < lastBackfill) {
+                         if (rule.endDate && parseDateInTimeZone(rule.endDate, settings.timeZone) < currentDate) return; // Rule already ended
+                         switch (rule.frequency) {
+                            case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+                            case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+                            case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
+                            case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                            case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
+                        }
+                    }
 
                     while (currentDate <= projectionEndDate) {
                         const dateString = formatDateInTimeZone(currentDate, settings.timeZone);
@@ -375,11 +391,18 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                         batch.set(transRef, trans);
                         backfilledWithIds.push({ id: transRef.id, ...trans });
                     });
+                    
+                    // Update lastBackfillDate in the same batch
+                    const updatedSettings = { ...settings, lastBackfillDate: todayString };
+                    batch.update(budgetRef, { settings: updatedSettings });
+                    
                     await batch.commit();
+                    
                     finalTransactions = [...transactions, ...backfilledWithIds];
+                    onBudgetLoaded(budgetIdInput.trim(), updatedSettings, rules, finalTransactions);
+                } else {
+                     onBudgetLoaded(budgetIdInput.trim(), settings, rules, finalTransactions);
                 }
-
-                onBudgetLoaded(budgetIdInput.trim(), settings, rules, finalTransactions);
                  console.log("Budget loaded:", budgetIdInput.trim());
             } else {
                 setError('Budget ID not found.');
