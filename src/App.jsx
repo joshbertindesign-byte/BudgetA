@@ -277,6 +277,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                         date: formatDateInTimeZone(currentDate, timeZone),
                         isPosted: false,
                         isModified: false,
+                        note: '',
                     };
                     const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${newBudgetId}/transactions`));
                     batch.set(transRef, newTransaction);
@@ -330,7 +331,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 
                 const transactionsQuery = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetIdInput.trim()}/transactions`));
                 const transactionsSnap = await getDocs(transactionsQuery);
-                const transactions = transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const transactions = transactionsSnap.docs.map(d => ({ id: d.id, ...d.data(), note: d.data().note || '' }));
 
                 // --- Backfill Logic ---
                 const today = virtualDate ? parseDateInTimeZone(virtualDate, settings.timeZone) : new Date();
@@ -360,7 +361,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                                 transactionsToBackfill.push({
                                     ruleId: rule.id, name: rule.name, ruleIdentifier: rule.ruleIdentifier,
                                     amount: rule.amount, date: dateString,
-                                    isPosted: false, isModified: false,
+                                    isPosted: false, isModified: false, note: '',
                                 });
                             }
                         }
@@ -542,7 +543,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     // --- Modal State ---
     const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
     const [editingTransaction, setEditingTransaction] = React.useState(null);
-    const [editForm, setEditForm] = React.useState({ amount: '', date: '' });
+    const [editForm, setEditForm] = React.useState({ amount: '', date: '', note: '' });
     const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
     const [ruleToDelete, setRuleToDelete] = React.useState(null);
     const [isPostFutureModalOpen, setIsPostFutureModalOpen] = React.useState(false);
@@ -815,6 +816,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 date: startDate,
                 isPosted: false,
                 isModified: false,
+                note: '',
             };
             try {
                 const transRef = await addDoc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`), newTransaction);
@@ -854,6 +856,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                     date: formatDateInTimeZone(currentDate, settings.timeZone),
                     isPosted: false,
                     isModified: false,
+                    note: '',
                 });
                 if (frequency === 'one-time') break;
                 switch (frequency) {
@@ -895,6 +898,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             date,
             isPosted: false,
             isModified: false,
+            note: '',
         };
 
         try {
@@ -946,7 +950,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     const openEditModal = (transaction) => {
         clearVirtualTransactions();
         setEditingTransaction(transaction);
-        setEditForm({ amount: transaction.amount, date: transaction.date });
+        setEditForm({ amount: transaction.amount, date: transaction.date, note: transaction.note || '' });
         setUpdateFuture(false);
         setIsEditModalOpen(true);
     };
@@ -974,15 +978,10 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         const { id, ruleId, date: originalDateStr, originalDate: existingOriginalDate } = editingTransaction;
         const newAmount = parseFloat(editForm.amount);
         const newDateStr = editForm.date;
+        const newNote = editForm.note;
 
         try {
             const batch = writeBatch(db);
-            const updatePayload = {
-                amount: newAmount,
-                date: newDateStr,
-                isModified: true,
-                originalDate: existingOriginalDate || originalDateStr
-            };
 
             if (updateFuture && ruleId) {
                 const originalDate = parseDateInTimeZone(originalDateStr, settings.timeZone);
@@ -990,24 +989,44 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 const dateDelta = newDate.getTime() - originalDate.getTime();
                 const futureTransactions = transactions.filter(t => t.ruleId === ruleId && t.date >= originalDateStr);
 
-                const updatedTransactions = futureTransactions.map(t => {
-                    const updatedTransaction = { ...t, amount: newAmount, isModified: true };
-                    if (dateDelta !== 0) {
-                        const currentTransDate = parseDateInTimeZone(t.date, settings.timeZone);
-                        const newTransDate = new Date(currentTransDate.getTime() + dateDelta);
-                        updatedTransaction.date = formatDateInTimeZone(newTransDate, settings.timeZone);
-                    }
+                futureTransactions.forEach(t => {
                     const transRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`, t.id);
-                    batch.update(transRef, { amount: updatedTransaction.amount, date: updatedTransaction.date, isModified: true });
-                    return updatedTransaction;
+                    if (t.id === id) { // This is the one being edited
+                        batch.update(transRef, {
+                            amount: newAmount,
+                            date: newDateStr,
+                            isModified: true,
+                            note: newNote,
+                            originalDate: t.originalDate || originalDateStr
+                        });
+                    } else { // These are the subsequent transactions
+                        const currentTransDate = parseDateInTimeZone(t.originalDate || t.date, settings.timeZone);
+                        const newTransDate = new Date(currentTransDate.getTime() + dateDelta);
+                        batch.update(transRef, {
+                            amount: newAmount,
+                            date: formatDateInTimeZone(newTransDate, settings.timeZone),
+                            isModified: true
+                        });
+                    }
                 });
-                setTransactions(prev => [...prev.filter(t => !futureTransactions.some(ft => ft.id === t.id)), ...updatedTransactions]);
             } else {
+                 const updatePayload = {
+                    amount: newAmount,
+                    date: newDateStr,
+                    isModified: true,
+                    note: newNote,
+                    originalDate: existingOriginalDate || originalDateStr
+                };
                 const transRef = doc(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`, id);
                 batch.update(transRef, updatePayload);
-                setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updatePayload } : t));
             }
             await batch.commit();
+
+            // Refetch all transactions to guarantee UI consistency after complex updates.
+            const transactionsQuery = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
+            const transactionsSnap = await getDocs(transactionsQuery);
+            setTransactions(transactionsSnap.docs.map(d => ({ id: d.id, ...d.data(), note: d.data().note || '' })));
+            
         } catch (error) {
             console.error("Error updating transaction(s):", error);
         } finally {
@@ -1118,7 +1137,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                         key: `${rule.id}-${formatDateInTimeZone(currentDate, settings.timeZone)}`,
                         ruleId: rule.id, name: rule.name, ruleIdentifier: rule.ruleIdentifier,
                         amount: rule.amount, date: formatDateInTimeZone(currentDate, settings.timeZone),
-                        isPosted: false, isModified: false
+                        isPosted: false, isModified: false, note: '',
                     });
 
                     if (rule.endDate && parseDateInTimeZone(rule.endDate, settings.timeZone) <= currentDate) break;
@@ -1185,7 +1204,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
 
              const transactionsQuery = query(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
              const transactionsSnap = await getDocs(transactionsQuery);
-             setTransactions(transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+             setTransactions(transactionsSnap.docs.map(d => ({ id: d.id, ...d.data(), note: d.data().note || '' })));
 
             onSettingsChange(localSettings);
 
@@ -1249,6 +1268,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 amount: next.rule.amount,
                 date: formatDateInTimeZone(next.date, settings.timeZone),
                 isPosted: false,
+                note: '',
             });
     
             let nextCurrentDate = next.date;
@@ -1479,8 +1499,14 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                     )}
                     <div className="flex-grow overflow-y-auto pr-2" onScroll={handleScroll}>
                         {allVisibleTransactions.map(t => (
-                            <div key={t.id || t.key} className={`text-xs bg-gray-700/50 p-1.5 rounded mb-1 grid grid-cols-12 items-center gap-2 ${t.isVirtual ? 'opacity-60' : ''}`}>
-                                <div className="col-span-1 flex justify-center">
+                            <div key={t.id || t.key} className={`text-xs p-1.5 rounded mb-1 grid grid-cols-12 items-center gap-2 ${t.isVirtual ? 'opacity-60' : ''} ${t.date === todayString && !t.isVirtual ? 'bg-blue-900/30' : 'bg-gray-700/50'}`}>
+                                <div className="col-span-1 flex justify-center items-center space-x-2">
+                                     {!t.isVirtual && t.note && t.note.trim() !== '' && (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                            <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                                        </svg>
+                                    )}
                                     {!t.isVirtual && (
                                         <input 
                                             type="checkbox" 
@@ -1656,7 +1682,15 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                     <div className="space-y-4">
                         <div><label className="block text-xs text-gray-400">Amount</label><input type="number" value={editForm.amount} onChange={e => setEditForm({...editForm, amount: e.target.value})} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
                         <div><label className="block text-xs text-gray-400">Date</label><input type="date" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
-                        
+                        <div>
+                            <label className="block text-xs text-gray-400">Note</label>
+                            <textarea
+                                value={editForm.note}
+                                onChange={e => setEditForm({...editForm, note: e.target.value})}
+                                className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+                                rows="3"
+                            />
+                        </div>
                         <div className="flex items-center pt-2">
                             <input
                                 id="update-future-checkbox"
@@ -2012,5 +2046,4 @@ export default function App() {
         </React.Fragment>
     );
 }
-
 
