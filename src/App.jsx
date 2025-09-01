@@ -310,7 +310,6 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 
             if (budgetSnap.exists()) {
                 const loadedSettings = budgetSnap.data().settings;
-                // Provide a default for the new setting if it doesn't exist on older budgets
                 const settings = { 
                     isVirtualProjectionEnabled: true,
                     isSliceEnabled: false,
@@ -327,7 +326,60 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 const transactionsSnap = await getDocs(transactionsQuery);
                 const transactions = transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                onBudgetLoaded(budgetIdInput.trim(), settings, rules, transactions);
+                // --- Backfill Logic ---
+                const today = new Date();
+                const projectionEndDate = new Date(today.getFullYear() + settings.yearsForward, today.getMonth(), today.getDate());
+                const existingTransactionKeys = new Set(transactions.map(t => `${t.ruleId}-${t.date}`));
+                const transactionsToBackfill = [];
+
+                rules.forEach(rule => {
+                    if (rule.frequency === 'one-time') return;
+
+                    let currentDate = parseDateInTimeZone(rule.startDate, settings.timeZone);
+
+                    while (currentDate <= projectionEndDate) {
+                        const dateString = formatDateInTimeZone(currentDate, settings.timeZone);
+                        const transactionKey = `${rule.id}-${dateString}`;
+                        
+                        if (!existingTransactionKeys.has(transactionKey)) {
+                             transactionsToBackfill.push({
+                                ruleId: rule.id,
+                                name: rule.name,
+                                ruleIdentifier: rule.ruleIdentifier,
+                                amount: rule.amount,
+                                date: dateString,
+                                isPosted: false,
+                                isModified: false,
+                             });
+                        }
+                        
+                        if (rule.endDate && parseDateInTimeZone(rule.endDate, settings.timeZone) < currentDate) break;
+                        
+                         switch (rule.frequency) {
+                            case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+                            case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+                            case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
+                            case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                            case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
+                        }
+                    }
+                });
+
+                let finalTransactions = transactions;
+                if (transactionsToBackfill.length > 0) {
+                    console.log(`Backfilling ${transactionsToBackfill.length} missing transactions.`);
+                    const batch = writeBatch(db);
+                    const backfilledWithIds = [];
+                    transactionsToBackfill.forEach(trans => {
+                        const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetIdInput.trim()}/transactions`));
+                        batch.set(transRef, trans);
+                        backfilledWithIds.push({ id: transRef.id, ...trans });
+                    });
+                    await batch.commit();
+                    finalTransactions = [...transactions, ...backfilledWithIds];
+                }
+
+                onBudgetLoaded(budgetIdInput.trim(), settings, rules, finalTransactions);
                  console.log("Budget loaded:", budgetIdInput.trim());
             } else {
                 setError('Budget ID not found.');
@@ -1343,8 +1395,13 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     id="slice-toggle"
                                     checked={isSliceViewActive}
                                     onChange={(e) => {
+                                        const isEnabled = e.target.checked;
                                         clearVirtualTransactions();
-                                        setIsSliceViewActive(e.target.checked);
+                                        setIsSliceViewActive(isEnabled);
+                                        if (isEnabled) {
+                                            const todaySlice = availableSlices.find(slice => todayString >= slice.range.start && todayString <= slice.range.end);
+                                            setCurrentSliceIndex(todaySlice ? todaySlice.index : (availableSlices[0]?.index || 0));
+                                        }
                                     }}
                                     className="form-checkbox h-4 w-4 text-indigo-500 bg-gray-800 border-gray-600 rounded focus:ring-indigo-500"
                                 />
