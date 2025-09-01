@@ -154,12 +154,14 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
     const [budgetIdInput, setBudgetIdInput] = React.useState('');
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState('');
+    const [virtualDate, setVirtualDate] = React.useState('');
 
     const handleCreateBudget = async () => {
         setIsLoading(true);
         setError('');
         const newBudgetId = generateBudgetId();
         try {
+            const todayForBackfill = virtualDate || formatDateInTimeZone(new Date(), timeZone);
             const settings = { 
                 yearsForward: years, 
                 timeZone, 
@@ -168,11 +170,11 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 isSliceEnabled: false,
                 sliceStartDate: null,
                 sliceFrequency: 'monthly',
-                lastBackfillDate: formatDateInTimeZone(new Date(), timeZone)
+                lastBackfillDate: todayForBackfill
             };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
             await setDoc(budgetRef, { settings });
-            onBudgetLoaded(newBudgetId, settings, [], []); // Pass empty rules/transactions
+            onBudgetLoaded(newBudgetId, settings, [], [], virtualDate || null);
             console.log("New budget created with ID:", newBudgetId);
         } catch (err) {
             console.error("Error creating budget:", err);
@@ -187,6 +189,8 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
         setError('');
         const newBudgetId = generateBudgetId();
         try {
+            const todayForDemo = virtualDate ? parseDateInTimeZone(virtualDate, timeZone) : new Date();
+            const todayForBackfill = virtualDate || formatDateInTimeZone(todayForDemo, timeZone);
             const settings = { 
                 yearsForward: years, 
                 timeZone, 
@@ -195,14 +199,14 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 isSliceEnabled: false,
                 sliceStartDate: null,
                 sliceFrequency: 'monthly',
-                lastBackfillDate: formatDateInTimeZone(new Date(), timeZone)
+                lastBackfillDate: todayForBackfill
             };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
 
             // Define sample data
-            const today = new Date();
+            const today = todayForDemo;
             const getStartDate = (monthsAgo, dayOfMonth = 1) => {
-                const date = new Date();
+                const date = new Date(today.getTime());
                 date.setMonth(date.getMonth() - monthsAgo);
                 date.setDate(dayOfMonth);
                 return formatDateInTimeZone(date, timeZone);
@@ -290,7 +294,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 }
             }
             await batch.commit();
-            onBudgetLoaded(newBudgetId, settings, allGeneratedRules, allGeneratedTransactions);
+            onBudgetLoaded(newBudgetId, settings, allGeneratedRules, allGeneratedTransactions, virtualDate || null);
         } catch (err) {
             console.error("Error creating demo budget:", err);
             setError(`Failed to create demo budget. Error: ${err.message}`);
@@ -329,11 +333,17 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 const transactions = transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
                 // --- Backfill Logic ---
-                const today = new Date();
-                const todayString = formatDateInTimeZone(today, settings.timeZone);
-                const lastBackfill = settings.lastBackfillDate ? parseDateInTimeZone(settings.lastBackfillDate, settings.timeZone) : new Date(today.getFullYear() - 10, 0, 1); // Fallback for old budgets
+                const today = virtualDate ? parseDateInTimeZone(virtualDate, settings.timeZone) : new Date();
+                const todayStringForBackfill = virtualDate || formatDateInTimeZone(today, settings.timeZone);
+                const lastTransactionDate = transactions.length > 0 
+                    ? transactions.reduce((max, t) => t.date > max ? t.date : max, transactions[0].date)
+                    : todayStringForBackfill;
+                
                 const projectionEndDate = new Date(today.getFullYear() + settings.yearsForward, today.getMonth(), today.getDate());
+                
                 const existingTransactionKeys = new Set(transactions.map(t => `${t.ruleId}-${t.date}`));
+                const movedTransactionOriginalDates = new Set(transactions.filter(t => t.originalDate).map(t => `${t.ruleId}-${t.originalDate}`));
+                
                 const transactionsToBackfill = [];
 
                 rules.forEach(rule => {
@@ -341,32 +351,18 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 
                     let currentDate = parseDateInTimeZone(rule.startDate, settings.timeZone);
                     
-                    // Fast-forward currentDate to be on or after the last backfill date to avoid re-calculating the past
-                    while (currentDate < lastBackfill) {
-                         if (rule.endDate && parseDateInTimeZone(rule.endDate, settings.timeZone) < currentDate) return; // Rule already ended
-                         switch (rule.frequency) {
-                            case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
-                            case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
-                            case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
-                            case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
-                            case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
-                        }
-                    }
-
-                    while (currentDate <= projectionEndDate) {
+                    while(currentDate <= projectionEndDate) {
                         const dateString = formatDateInTimeZone(currentDate, settings.timeZone);
-                        const transactionKey = `${rule.id}-${dateString}`;
-                        
-                        if (!existingTransactionKeys.has(transactionKey)) {
-                             transactionsToBackfill.push({
-                                ruleId: rule.id,
-                                name: rule.name,
-                                ruleIdentifier: rule.ruleIdentifier,
-                                amount: rule.amount,
-                                date: dateString,
-                                isPosted: false,
-                                isModified: false,
-                             });
+
+                        if (dateString > lastTransactionDate) {
+                            const transactionKey = `${rule.id}-${dateString}`;
+                            if (!existingTransactionKeys.has(transactionKey) && !movedTransactionOriginalDates.has(transactionKey)) {
+                                transactionsToBackfill.push({
+                                    ruleId: rule.id, name: rule.name, ruleIdentifier: rule.ruleIdentifier,
+                                    amount: rule.amount, date: dateString,
+                                    isPosted: false, isModified: false,
+                                });
+                            }
                         }
                         
                         if (rule.endDate && parseDateInTimeZone(rule.endDate, settings.timeZone) < currentDate) break;
@@ -392,16 +388,15 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                         backfilledWithIds.push({ id: transRef.id, ...trans });
                     });
                     
-                    // Update lastBackfillDate in the same batch
-                    const updatedSettings = { ...settings, lastBackfillDate: todayString };
+                    const updatedSettings = { ...settings, lastBackfillDate: todayStringForBackfill };
                     batch.update(budgetRef, { settings: updatedSettings });
                     
                     await batch.commit();
                     
                     finalTransactions = [...transactions, ...backfilledWithIds];
-                    onBudgetLoaded(budgetIdInput.trim(), updatedSettings, rules, finalTransactions);
+                    onBudgetLoaded(budgetIdInput.trim(), updatedSettings, rules, finalTransactions, virtualDate || null);
                 } else {
-                     onBudgetLoaded(budgetIdInput.trim(), settings, rules, finalTransactions);
+                     onBudgetLoaded(budgetIdInput.trim(), settings, rules, finalTransactions, virtualDate || null);
                 }
                  console.log("Budget loaded:", budgetIdInput.trim());
             } else {
@@ -423,6 +418,19 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 {error && <p className="bg-red-500/20 text-red-300 p-3 rounded-md mb-4 text-center">{error}</p>}
 
                 <div className="space-y-6">
+                    {/* VIRTUAL DATE PICKER */}
+                    <div className="bg-gray-700/50 p-4 rounded-md">
+                        <label htmlFor="virtualDate" className="block text-sm font-medium text-gray-300 mb-1">Set a Virtual "Today" (Optional)</label>
+                        <input
+                            type="date"
+                            id="virtualDate"
+                            value={virtualDate}
+                            onChange={(e) => setVirtualDate(e.target.value)}
+                            className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                         <p className="text-xs text-gray-400 mt-2">If set, all calculations will use this date instead of the real current date.</p>
+                    </div>
+
                     {/* Create New Budget Section */}
                     <div className="bg-gray-700/50 p-4 rounded-md">
                         <h2 className="text-xl font-semibold mb-4 border-b border-gray-600 pb-2">Create a New Budget</h2>
@@ -515,7 +523,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 /**
  * Main application dashboard view.
  */
-const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, db, onBudgetIdChange, onSettingsChange }) => {
+const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, db, onBudgetIdChange, onSettingsChange, virtualDate }) => {
     const [rules, setRules] = React.useState(initialRules);
     const [transactions, setTransactions] = React.useState(initialTransactions);
     const [isLoading, setIsLoading] = React.useState(false);
@@ -585,7 +593,9 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     useOutsideClick(sliceSelectorRef, () => setIsSliceSelectorOpen(false));
 
 
-    const todayString = React.useMemo(() => formatDateInTimeZone(new Date(), settings.timeZone), [settings.timeZone]);
+    const todayString = React.useMemo(() => {
+        return virtualDate || formatDateInTimeZone(new Date(), settings.timeZone);
+    }, [settings.timeZone, virtualDate]);
 
     const sortedRules = React.useMemo(() => [...rules].sort((a, b) => a.name.localeCompare(b.name)), [rules]);
 
@@ -961,7 +971,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     const handleUpdateTransaction = async (updateFuture) => {
         if (!editingTransaction) return;
         setIsLoading(true);
-        const { id, ruleId, date: originalDateStr } = editingTransaction;
+        const { id, ruleId, date: originalDateStr, originalDate: existingOriginalDate } = editingTransaction;
         const newAmount = parseFloat(editForm.amount);
         const newDateStr = editForm.date;
 
@@ -970,7 +980,8 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             const updatePayload = {
                 amount: newAmount,
                 date: newDateStr,
-                isModified: true
+                isModified: true,
+                originalDate: existingOriginalDate || originalDateStr
             };
 
             if (updateFuture && ruleId) {
@@ -1875,6 +1886,7 @@ export default function App() {
         settings: null,
         rules: [],
         transactions: [],
+        virtualDate: null,
     });
 
      React.useEffect(() => {
@@ -1958,8 +1970,8 @@ export default function App() {
         }
     }, []);
 
-    const handleBudgetLoaded = (id, settings, rules, transactions) => {
-        setBudgetState({ id, settings, rules, transactions });
+    const handleBudgetLoaded = (id, settings, rules, transactions, virtualDate) => {
+        setBudgetState({ id, settings, rules, transactions, virtualDate });
     };
 
     const handleBudgetIdChange = (newId) => {
@@ -1994,6 +2006,7 @@ export default function App() {
                     db={db}
                     onBudgetIdChange={handleBudgetIdChange}
                     onSettingsChange={handleSettingsChange}
+                    virtualDate={budgetState.virtualDate}
                 />
             )}
         </React.Fragment>
