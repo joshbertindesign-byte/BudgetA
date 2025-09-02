@@ -154,14 +154,20 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
     const [budgetIdInput, setBudgetIdInput] = React.useState('');
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState('');
-    const [virtualDate, setVirtualDate] = React.useState('');
+    const [rememberId, setRememberId] = React.useState(true);
+
+     React.useEffect(() => {
+        const savedId = localStorage.getItem('budgeterAppLastId');
+        if (savedId) {
+            setBudgetIdInput(savedId);
+        }
+    }, []);
 
     const handleCreateBudget = async () => {
         setIsLoading(true);
         setError('');
         const newBudgetId = generateBudgetId();
         try {
-            const todayForBackfill = virtualDate || formatDateInTimeZone(new Date(), timeZone);
             const settings = { 
                 yearsForward: years, 
                 timeZone, 
@@ -170,135 +176,14 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 isSliceEnabled: false,
                 sliceStartDate: null,
                 sliceFrequency: 'monthly',
-                lastBackfillDate: todayForBackfill
             };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
             await setDoc(budgetRef, { settings });
-            onBudgetLoaded(newBudgetId, settings, [], [], virtualDate || null);
+            onBudgetLoaded(newBudgetId, settings, [], []); // Pass empty rules/transactions
             console.log("New budget created with ID:", newBudgetId);
         } catch (err) {
             console.error("Error creating budget:", err);
             setError(`Failed to create budget. Check Firestore rules & connection. Error: ${err.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleCreateDemoBudget = async () => {
-        setIsLoading(true);
-        setError('');
-        const newBudgetId = generateBudgetId();
-        try {
-            const todayForDemo = virtualDate ? parseDateInTimeZone(virtualDate, timeZone) : new Date();
-            const todayForBackfill = virtualDate || formatDateInTimeZone(todayForDemo, timeZone);
-            const settings = { 
-                yearsForward: years, 
-                timeZone, 
-                owner: userId, 
-                isVirtualProjectionEnabled: true,
-                isSliceEnabled: false,
-                sliceStartDate: null,
-                sliceFrequency: 'monthly',
-                lastBackfillDate: todayForBackfill
-            };
-            const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
-
-            // Define sample data
-            const today = todayForDemo;
-            const getStartDate = (monthsAgo, dayOfMonth = 1) => {
-                const date = new Date(today.getTime());
-                date.setMonth(date.getMonth() - monthsAgo);
-                date.setDate(dayOfMonth);
-                return formatDateInTimeZone(date, timeZone);
-            };
-
-            const sampleRulesData = [
-                // Income
-                { name: 'Paycheck', amount: 2500, frequency: 'bi-weekly', startDate: getStartDate(3, 5) },
-                { name: 'Side Hustle Income', amount: 300, frequency: 'monthly', startDate: getStartDate(2, 20) },
-                // Housing
-                { name: 'Rent Payment', amount: -1500, frequency: 'monthly', startDate: getStartDate(3, 1) },
-                { name: 'Electricity Bill', amount: -85, frequency: 'monthly', startDate: getStartDate(3, 15) },
-                { name: 'Water & Trash', amount: -75, frequency: 'monthly', startDate: getStartDate(2, 18) },
-                { name: 'Internet Bill', amount: -65, frequency: 'monthly', startDate: getStartDate(3, 22) },
-                // Transportation
-                { name: 'Gasoline', amount: -50, frequency: 'weekly', startDate: getStartDate(3, 3) },
-                { name: 'Car Insurance', amount: -120, frequency: 'monthly', startDate: getStartDate(3, 28) },
-                { name: 'Public Transit Pass', amount: -50, frequency: 'monthly', startDate: getStartDate(2, 1) },
-                // Food
-                { name: 'Groceries', amount: -125, frequency: 'weekly', startDate: getStartDate(3, 6) },
-                { name: 'Restaurants & Dining', amount: -70, frequency: 'weekly', startDate: getStartDate(2, 2) },
-                { name: 'Coffee Shops', amount: -25, frequency: 'weekly', startDate: getStartDate(3, 1) },
-                 // Personal & Health
-                { name: 'Gym Membership', amount: -40, frequency: 'monthly', startDate: getStartDate(3, 5) },
-                { name: 'Phone Bill', amount: -75, frequency: 'monthly', startDate: getStartDate(3, 12) },
-                { name: 'Health Insurance', amount: -220, frequency: 'monthly', startDate: getStartDate(3, 1) },
-                // Subscriptions
-                { name: 'Streaming Service 1', amount: -15.99, frequency: 'monthly', startDate: getStartDate(3, 9) },
-                { name: 'Music Streaming', amount: -10.99, frequency: 'monthly', startDate: getStartDate(2, 14) },
-                { name: 'Cloud Storage', amount: -9.99, frequency: 'monthly', startDate: getStartDate(1, 19) },
-                // Debt & Savings
-                { name: 'Student Loan', amount: -250, frequency: 'monthly', startDate: getStartDate(3, 25) },
-                { name: 'Credit Card Payment', amount: -200, frequency: 'monthly', startDate: getStartDate(3, 27) },
-                { name: 'Savings Transfer', amount: -500, frequency: 'monthly', startDate: getStartDate(3, 1) },
-                { name: 'Investment Account', amount: -250, frequency: 'monthly', startDate: getStartDate(2, 15) },
-                 // Miscellaneous & One-Time
-                { name: 'Haircut', amount: -30, frequency: 'monthly', startDate: getStartDate(2, 10) },
-                { name: 'Household Supplies', amount: -40, frequency: 'monthly', startDate: getStartDate(1, 7) },
-                { name: 'New Jacket Purchase', amount: -120, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 20)), timeZone) },
-                { name: 'Concert Tickets', amount: -180, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 45)), timeZone) },
-                { name: 'Birthday Gift', amount: -50, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 10)), timeZone) },
-                { name: 'Book Purchase', amount: -22, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 5)), timeZone) },
-                { name: 'Movie Night Out', amount: -40, frequency: 'one-time', startDate: formatDateInTimeZone(new Date(new Date().setDate(today.getDate() - 12)), timeZone) },
-            ];
-
-            const allGeneratedRules = [];
-            const allGeneratedTransactions = [];
-            const batch = writeBatch(db);
-
-            batch.set(budgetRef, { settings });
-
-            for (const ruleData of sampleRulesData) {
-                const newRule = { ...ruleData, endDate: null, ruleIdentifier: generateRuleIdentifier() };
-                const ruleRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${newBudgetId}/rules`));
-                batch.set(ruleRef, newRule);
-                const ruleWithId = { id: ruleRef.id, ...newRule };
-                allGeneratedRules.push(ruleWithId);
-
-                let currentDate = parseDateInTimeZone(newRule.startDate, timeZone);
-                const finalDate = new Date(new Date().getFullYear() + settings.yearsForward, new Date().getMonth(), new Date().getDate());
-
-                while (currentDate <= finalDate) {
-                    const newTransaction = {
-                        ruleId: ruleRef.id,
-                        name: newRule.name,
-                        ruleIdentifier: newRule.ruleIdentifier,
-                        amount: newRule.amount,
-                        date: formatDateInTimeZone(currentDate, timeZone),
-                        isPosted: false,
-                        isModified: false,
-                        note: '',
-                    };
-                    const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${newBudgetId}/transactions`));
-                    batch.set(transRef, newTransaction);
-                    allGeneratedTransactions.push({ id: transRef.id, ...newTransaction });
-
-                    if (newRule.frequency === 'one-time') break;
-
-                    switch (newRule.frequency) {
-                        case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
-                        case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
-                        case 'bi-weekly': currentDate.setDate(currentDate.getDate() + 14); break;
-                        case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
-                        case 'annual': currentDate.setFullYear(currentDate.getFullYear() + 1); break;
-                    }
-                }
-            }
-            await batch.commit();
-            onBudgetLoaded(newBudgetId, settings, allGeneratedRules, allGeneratedTransactions, virtualDate || null);
-        } catch (err) {
-            console.error("Error creating demo budget:", err);
-            setError(`Failed to create demo budget. Error: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -311,6 +196,13 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
         }
         setIsLoading(true);
         setError('');
+
+        if (rememberId) {
+            localStorage.setItem('budgeterAppLastId', budgetIdInput.trim());
+        } else {
+            localStorage.removeItem('budgeterAppLastId');
+        }
+
         try {
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, budgetIdInput.trim());
             const budgetSnap = await getDoc(budgetRef);
@@ -334,8 +226,8 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 const transactions = transactionsSnap.docs.map(d => ({ id: d.id, ...d.data(), note: d.data().note || '' }));
 
                 // --- Backfill Logic ---
-                const today = virtualDate ? parseDateInTimeZone(virtualDate, settings.timeZone) : new Date();
-                const todayStringForBackfill = virtualDate || formatDateInTimeZone(today, settings.timeZone);
+                const today = new Date();
+                const todayStringForBackfill = formatDateInTimeZone(today, settings.timeZone);
                 const lastTransactionDate = transactions.length > 0 
                     ? transactions.reduce((max, t) => t.date > max ? t.date : max, transactions[0].date)
                     : todayStringForBackfill;
@@ -395,9 +287,9 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                     await batch.commit();
                     
                     finalTransactions = [...transactions, ...backfilledWithIds];
-                    onBudgetLoaded(budgetIdInput.trim(), updatedSettings, rules, finalTransactions, virtualDate || null);
+                    onBudgetLoaded(budgetIdInput.trim(), updatedSettings, rules, finalTransactions);
                 } else {
-                     onBudgetLoaded(budgetIdInput.trim(), settings, rules, finalTransactions, virtualDate || null);
+                     onBudgetLoaded(budgetIdInput.trim(), settings, rules, finalTransactions);
                 }
                  console.log("Budget loaded:", budgetIdInput.trim());
             } else {
@@ -419,17 +311,42 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 {error && <p className="bg-red-500/20 text-red-300 p-2 rounded-md mb-3 text-center text-sm">{error}</p>}
 
                 <div className="space-y-4">
-                    {/* VIRTUAL DATE PICKER */}
-                    <div className="bg-gray-700/50 p-3 rounded-md">
-                        <label htmlFor="virtualDate" className="block text-sm font-medium text-gray-300 mb-1">Set Virtual "Today" (Optional)</label>
-                        <input
-                            type="date"
-                            id="virtualDate"
-                            value={virtualDate}
-                            onChange={(e) => setVirtualDate(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                        />
-                         <p className="text-xs text-gray-400 mt-2">If set, all calculations will use this date.</p>
+                    {/* Load Existing Budget Section */}
+                     <div className="bg-gray-700/50 p-3 rounded-md">
+                        <h2 className="text-lg font-semibold mb-3 border-b border-gray-600 pb-2">Load Existing Budget</h2>
+                        <div className="flex gap-2">
+                             <input
+                                type="text"
+                                placeholder="Enter 3-7 digit Budget ID"
+                                value={budgetIdInput}
+                                onChange={(e) => setBudgetIdInput(e.target.value.toUpperCase())}
+                                className="flex-grow bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+                            />
+                            <button
+                                onClick={handleLoadBudget}
+                                disabled={isLoading}
+                                className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
+                            >
+                                {isLoading ? 'Loading...' : 'Load'}
+                            </button>
+                        </div>
+                        <div className="flex items-center mt-3">
+                            <input
+                                id="remember-id"
+                                type="checkbox"
+                                checked={rememberId}
+                                onChange={(e) => setRememberId(e.target.checked)}
+                                className="form-checkbox h-4 w-4 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
+                            />
+                            <label htmlFor="remember-id" className="ml-2 text-xs text-gray-300">Remember Budget ID</label>
+                        </div>
+                    </div>
+
+                    {/* Or Separator */}
+                    <div className="flex items-center">
+                        <div className="flex-grow border-t border-gray-600"></div>
+                        <span className="flex-shrink mx-4 text-xs text-gray-400">OR</span>
+                        <div className="flex-grow border-t border-gray-600"></div>
                     </div>
 
                     {/* Create New Budget Section */}
@@ -477,42 +394,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                                 >
                                     {isLoading ? 'Creating...' : 'Generate New Budget'}
                                 </button>
-                                <button
-                                    onClick={handleCreateDemoBudget}
-                                    disabled={isLoading}
-                                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
-                                >
-                                    {isLoading ? 'Generating...' : 'Generate Demo Budget'}
-                                </button>
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Or Separator */}
-                    <div className="flex items-center">
-                        <div className="flex-grow border-t border-gray-600"></div>
-                        <span className="flex-shrink mx-4 text-xs text-gray-400">OR</span>
-                        <div className="flex-grow border-t border-gray-600"></div>
-                    </div>
-
-                    {/* Load Existing Budget Section */}
-                    <div className="bg-gray-700/50 p-3 rounded-md">
-                        <h2 className="text-lg font-semibold mb-3 border-b border-gray-600 pb-2">Load Existing Budget</h2>
-                        <div className="flex gap-2">
-                             <input
-                                type="text"
-                                placeholder="Enter 3-7 digit Budget ID"
-                                value={budgetIdInput}
-                                onChange={(e) => setBudgetIdInput(e.target.value.toUpperCase())}
-                                className="flex-grow bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                            />
-                            <button
-                                onClick={handleLoadBudget}
-                                disabled={isLoading}
-                                className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
-                            >
-                                {isLoading ? 'Loading...' : 'Load'}
-                            </button>
                         </div>
                     </div>
                 </div>
