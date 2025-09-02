@@ -1830,7 +1830,7 @@ export default function App() {
     const [authReady, setAuthReady] = React.useState(false);
     const [db, setDb] = React.useState(null);
     const [userId, setUserId] = React.useState(null);
-    const [theme, setTheme] = React.useState(localStorage.getItem('budgeterTheme') || 'dark');
+    const [theme, setTheme] = React.useState('dark');
 
     const [budgetState, setBudgetState] = React.useState({
         id: null,
@@ -1888,6 +1888,11 @@ export default function App() {
         }
 
         document.title = "Predictive Budgeting App";
+    }, []);
+
+     React.useEffect(() => {
+        const savedTheme = localStorage.getItem('budgeterTheme') || 'dark';
+        setTheme(savedTheme);
     }, []);
 
      React.useEffect(() => {
