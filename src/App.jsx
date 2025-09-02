@@ -1842,6 +1842,12 @@ export default function App() {
 
      React.useEffect(() => {
         // Inject dependencies into the document head
+        if (!document.getElementById('tailwind-config-script')) {
+            const configScript = document.createElement('script');
+            configScript.id = 'tailwind-config-script';
+            configScript.innerHTML = `tailwind.config = { darkMode: 'class' }`;
+            document.head.appendChild(configScript);
+        }
         if (!document.getElementById('tailwind-script')) {
             const tailwindScript = document.createElement('script');
             tailwindScript.id = 'tailwind-script';
