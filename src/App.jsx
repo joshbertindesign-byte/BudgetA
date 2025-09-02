@@ -176,6 +176,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 isSliceEnabled: false,
                 sliceStartDate: null,
                 sliceFrequency: 'monthly',
+                theme: 'dark'
             };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
             await setDoc(budgetRef, { settings });
@@ -214,6 +215,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                     isSliceEnabled: false,
                     sliceStartDate: null,
                     sliceFrequency: 'monthly',
+                    theme: 'dark',
                     ...loadedSettings 
                 };
 
@@ -406,7 +408,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 /**
  * Main application dashboard view.
  */
-const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, db, onBudgetIdChange, onSettingsChange, virtualDate, onLogout, theme, setTheme }) => {
+const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, db, onBudgetIdChange, onSettingsChange, virtualDate, onLogout }) => {
     const [rules, setRules] = React.useState(initialRules);
     const [transactions, setTransactions] = React.useState(initialTransactions);
     const [isLoading, setIsLoading] = React.useState(false);
@@ -1063,7 +1065,8 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             (localSettings.isVirtualProjectionEnabled ?? true) !== (settings.isVirtualProjectionEnabled ?? true) ||
             localSettings.isSliceEnabled !== settings.isSliceEnabled ||
             localSettings.sliceStartDate !== settings.sliceStartDate ||
-            localSettings.sliceFrequency !== settings.sliceFrequency
+            localSettings.sliceFrequency !== settings.sliceFrequency ||
+            localSettings.theme !== settings.theme
         ) { 
             // Only non-transactional settings changed
             handleConfirmSettingsChange();
@@ -1566,8 +1569,10 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                    <input
                                         type="checkbox"
                                         id="theme-toggle"
-                                        checked={theme === 'dark'}
-                                        onChange={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+                                        checked={localSettings.theme === 'dark'}
+                                        onChange={(e) => {
+                                            setLocalSettings(prev => ({...prev, theme: e.target.checked ? 'dark' : 'light' }))
+                                        }}
                                         className="form-checkbox h-5 w-5 text-cyan-600 bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-cyan-500"
                                     />
                                     <span className="ml-3 text-sm text-gray-600 dark:text-gray-300">Dark Mode</span>
@@ -1830,7 +1835,12 @@ export default function App() {
     const [authReady, setAuthReady] = React.useState(false);
     const [db, setDb] = React.useState(null);
     const [userId, setUserId] = React.useState(null);
-    const [theme, setTheme] = React.useState(() => localStorage.getItem('budgeterTheme') || 'dark');
+    
+    // Initialize theme from localStorage synchronously to avoid flash of wrong theme
+    const [theme, setTheme] = React.useState(() => {
+        const savedTheme = localStorage.getItem('budgeterTheme');
+        return savedTheme || 'dark';
+    });
 
     const [budgetState, setBudgetState] = React.useState({
         id: null,
