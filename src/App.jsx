@@ -467,9 +467,6 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         date: formatDateInTimeZone(new Date(), settings.timeZone)
     });
 
-    // --- FIX: This effect synchronizes the local settings state with the settings prop ---
-    // When the settings prop changes (e.g., after saving), this ensures the UI in the
-    // settings tab reflects the latest saved state, preventing a stale UI.
     React.useEffect(() => {
         setLocalSettings(settings);
     }, [settings]);
@@ -1072,8 +1069,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             (localSettings.isVirtualProjectionEnabled ?? true) !== (settings.isVirtualProjectionEnabled ?? true) ||
             localSettings.isSliceEnabled !== settings.isSliceEnabled ||
             localSettings.sliceStartDate !== settings.sliceStartDate ||
-            localSettings.sliceFrequency !== settings.sliceFrequency ||
-            localSettings.theme !== settings.theme
+            localSettings.sliceFrequency !== settings.sliceFrequency
         ) { 
             // Only non-transactional settings changed
             handleConfirmSettingsChange();
@@ -1569,21 +1565,6 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     {settings.isSliceEnabled ? 'Modify Slices' : 'Set Up Slices'}
                                 </button>
                                 <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 pl-1">View your budget in discrete periods (e.g., week by week).</p>
-                            </div>
-                             <div className="pt-2">
-                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Theme</label>
-                                <div className="flex items-center bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md">
-                                   <input
-                                        type="checkbox"
-                                        id="theme-toggle"
-                                        checked={localSettings.theme === 'dark'}
-                                        onChange={(e) => {
-                                            setLocalSettings(prev => ({...prev, theme: e.target.checked ? 'dark' : 'light' }))
-                                        }}
-                                        className="form-checkbox h-5 w-5 text-cyan-600 bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-cyan-500"
-                                    />
-                                    <span className="ml-3 text-sm text-gray-600 dark:text-gray-300">Dark Mode</span>
-                                </div>
                             </div>
                             <div className="pt-2">
                                 <button
