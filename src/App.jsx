@@ -209,6 +209,10 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 
             if (budgetSnap.exists()) {
                 const loadedSettings = budgetSnap.data().settings;
+                // Explicitly remove any lingering theme property to clean up old data structures
+                if (loadedSettings.theme) {
+                    delete loadedSettings.theme;
+                }
                 const settings = { 
                     isVirtualProjectionEnabled: true,
                     isSliceEnabled: false,
@@ -1878,7 +1882,7 @@ export default function App() {
         }
 
         document.title = "Predictive Budgeting App";
-        // Force dark mode on initial load
+        // Force dark mode on initial load and remove any possibility of light mode
         document.documentElement.classList.add('dark');
     }, []);
 
