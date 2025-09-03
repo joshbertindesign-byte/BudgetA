@@ -176,7 +176,6 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 isSliceEnabled: false,
                 sliceStartDate: null,
                 sliceFrequency: 'monthly',
-                theme: 'dark'
             };
             const budgetRef = doc(db, `artifacts/${appId}/public/data/budgets`, newBudgetId);
             await setDoc(budgetRef, { settings });
@@ -215,7 +214,6 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                     isSliceEnabled: false,
                     sliceStartDate: null,
                     sliceFrequency: 'monthly',
-                    theme: 'dark',
                     ...loadedSettings 
                 };
 
@@ -1880,15 +1878,9 @@ export default function App() {
         }
 
         document.title = "Predictive Budgeting App";
+        // Force dark mode on initial load
+        document.documentElement.classList.add('dark');
     }, []);
-
-     React.useEffect(() => {
-        if (budgetState.settings?.theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    }, [budgetState.settings]);
 
 
     React.useEffect(() => {
