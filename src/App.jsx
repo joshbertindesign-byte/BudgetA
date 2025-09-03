@@ -27,12 +27,12 @@ const timezones = [
 // --- Firebase Configuration ---
 // This configuration will be used as a fallback if one is not provided by the environment.
 const userFirebaseConfig = {
-  apiKey: "AIzaSyD3YFW6HDtV8jTz0GIRZAEPx9wTCS6T1fU",
-  authDomain: "budgeter-d4854.firebaseapp.com",
-  projectId: "budgeter-d4854",
-  storageBucket: "budgeter-d4854.appspot.com",
-  messagingSenderId: "484673918178",
-  appId: "1:484673918178:web:e9945fff52440b2a07fabb"
+    apiKey: "AIzaSyD3YFW6HDtV8jTz0GIRZAEPx9wTCS6T1fU",
+    authDomain: "budgeter-d4854.firebaseapp.com",
+    projectId: "budgeter-d4854",
+    storageBucket: "budgeter-d4854.appspot.com",
+    messagingSenderId: "484673918178",
+    appId: "1:484673918178:web:e9945fff52440b2a07fabb"
 };
 
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
@@ -315,19 +315,19 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                 <div className="space-y-4">
                     {/* Load Existing Budget Section */}
                      <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
-                        <h2 className="text-lg font-semibold mb-3 border-b border-gray-200 dark:border-gray-600 pb-2">Load Existing Budget</h2>
-                        <div className="flex gap-2">
+                         <h2 className="text-lg font-semibold mb-3 border-b border-gray-200 dark:border-gray-600 pb-2">Load Existing Budget</h2>
+                         <div className="flex gap-2">
                              <input
-                                type="text"
-                                placeholder="Enter 3-7 digit Budget ID"
-                                value={budgetIdInput}
-                                onChange={(e) => setBudgetIdInput(e.target.value.toUpperCase())}
-                                className="flex-grow bg-gray-200 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                 type="text"
+                                 placeholder="Enter 3-7 digit Budget ID"
+                                 value={budgetIdInput}
+                                 onChange={(e) => setBudgetIdInput(e.target.value.toUpperCase())}
+                                 className="flex-grow bg-gray-200 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
                             />
                             <button
-                                onClick={handleLoadBudget}
-                                disabled={isLoading}
-                                className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
+                                 onClick={handleLoadBudget}
+                                 disabled={isLoading}
+                                 className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
                             >
                                 {isLoading ? 'Loading...' : 'Load'}
                             </button>
@@ -466,6 +466,13 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         amount: '',
         date: formatDateInTimeZone(new Date(), settings.timeZone)
     });
+
+    // --- FIX: This effect synchronizes the local settings state with the settings prop ---
+    // When the settings prop changes (e.g., after saving), this ensures the UI in the
+    // settings tab reflects the latest saved state, preventing a stale UI.
+    React.useEffect(() => {
+        setLocalSettings(settings);
+    }, [settings]);
 
     const clearVirtualTransactions = React.useCallback(() => {
         if (virtualTransactions.length > 0) {
@@ -767,9 +774,9 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             const batch = writeBatch(db);
             const transactionsWithIds = [];
             newTransactions.forEach(trans => {
-                 const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
-                 batch.set(transRef, trans);
-                 transactionsWithIds.push({ id: transRef.id, ...trans });
+               const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
+               batch.set(transRef, trans);
+               transactionsWithIds.push({ id: transRef.id, ...trans });
             });
             await batch.commit();
 
@@ -1183,7 +1190,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     
         setVirtualTransactions(prev => [...prev, ...newVirtuals]);
         setIsGeneratingVirtuals(false);
-    }, [rules, transactions, virtualTransactions, settings.timeZone, isGeneratingVirtuals]);
+    }, [rules, transactions, virtualTransactions, settings.timeZone]);
 
     const handleScroll = (e) => {
         // Check if the feature is enabled in the current settings
@@ -1373,31 +1380,31 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setCurrentSliceIndex(i => i - 1)} className="bg-gray-200 dark:bg-gray-700 p-1 rounded-full text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
                                      <div ref={sliceSelectorRef} className="relative">
-                                        <button 
-                                            onClick={() => setIsSliceSelectorOpen(prev => !prev)} 
-                                            className="font-mono text-xs text-center w-48 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded p-1"
+                                         <button 
+                                             onClick={() => setIsSliceSelectorOpen(prev => !prev)} 
+                                             className="font-mono text-xs text-center w-48 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded p-1"
                                         >
-                                            {`${calculateSliceRange(currentSliceIndex)?.start || ''} - ${calculateSliceRange(currentSliceIndex)?.end || ''}`}
-                                        </button>
-                                        {isSliceSelectorOpen && (
-                                            <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-20">
-                                                <div className="max-h-60 overflow-y-auto text-sm p-2">
-                                                    {availableSlices.map(slice => (
-                                                        <div 
-                                                            key={slice.index} 
-                                                            onClick={() => {
-                                                                setCurrentSliceIndex(slice.index);
-                                                                setIsSliceSelectorOpen(false);
-                                                            }}
-                                                            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer text-center"
+                                             {`${calculateSliceRange(currentSliceIndex)?.start || ''} - ${calculateSliceRange(currentSliceIndex)?.end || ''}`}
+                                         </button>
+                                         {isSliceSelectorOpen && (
+                                             <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-20">
+                                                 <div className="max-h-60 overflow-y-auto text-sm p-2">
+                                                     {availableSlices.map(slice => (
+                                                         <div 
+                                                             key={slice.index} 
+                                                             onClick={() => {
+                                                                 setCurrentSliceIndex(slice.index);
+                                                                 setIsSliceSelectorOpen(false);
+                                                             }}
+                                                             className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer text-center"
                                                         >
-                                                            {`${slice.range.start} - ${slice.range.end}`}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                                             {`${slice.range.start} - ${slice.range.end}`}
+                                                         </div>
+                                                     ))}
+                                                 </div>
+                                             </div>
+                                         )}
+                                     </div>
                                     <button onClick={() => setCurrentSliceIndex(i => i + 1)} className="bg-gray-200 dark:bg-gray-700 p-1 rounded-full text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
                                 </div>
                             )}
