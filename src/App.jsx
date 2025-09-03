@@ -1836,12 +1836,6 @@ export default function App() {
     const [db, setDb] = React.useState(null);
     const [userId, setUserId] = React.useState(null);
     
-    // Initialize theme from localStorage synchronously to avoid flash of wrong theme
-    const [theme, setTheme] = React.useState(() => {
-        const savedTheme = localStorage.getItem('budgeterTheme');
-        return savedTheme || 'dark';
-    });
-
     const [budgetState, setBudgetState] = React.useState({
         id: null,
         settings: null,
@@ -1901,13 +1895,12 @@ export default function App() {
     }, []);
 
      React.useEffect(() => {
-        localStorage.setItem('budgeterTheme', theme);
-        if (theme === 'dark') {
+        if (budgetState.settings?.theme === 'dark') {
             document.documentElement.classList.add('dark');
         } else {
             document.documentElement.classList.remove('dark');
         }
-    }, [theme]);
+    }, [budgetState.settings]);
 
 
     React.useEffect(() => {
@@ -1994,8 +1987,6 @@ export default function App() {
                     onSettingsChange={handleSettingsChange}
                     virtualDate={budgetState.virtualDate}
                     onLogout={handleLogout}
-                    theme={theme}
-                    setTheme={setTheme}
                 />
             )}
         </React.Fragment>
