@@ -27,12 +27,12 @@ const timezones = [
 // --- Firebase Configuration ---
 // This configuration will be used as a fallback if one is not provided by the environment.
 const userFirebaseConfig = {
-    apiKey: "AIzaSyD3YFW6HDtV8jTz0GIRZAEPx9wTCS6T1fU",
-    authDomain: "budgeter-d4854.firebaseapp.com",
-    projectId: "budgeter-d4854",
-    storageBucket: "budgeter-d4854.appspot.com",
-    messagingSenderId: "484673918178",
-    appId: "1:484673918178:web:e9945fff52440b2a07fabb"
+  apiKey: "AIzaSyD3YFW6HDtV8jTz0GIRZAEPx9wTCS6T1fU",
+  authDomain: "budgeter-d4854.firebaseapp.com",
+  projectId: "budgeter-d4854",
+  storageBucket: "budgeter-d4854.appspot.com",
+  messagingSenderId: "484673918178",
+  appId: "1:484673918178:web:e9945fff52440b2a07fabb"
 };
 
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
@@ -129,10 +129,10 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md m-4">
+            <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md m-4">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-white">{title}</h3>
-                    <button onClick={onClose} className="text-2xl font-bold text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white leading-none p-1">&times;</button>
+                    <h3 className="text-xl font-bold text-white">{title}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white">&times;</button>
                 </div>
                 <div>{children}</div>
             </div>
@@ -209,10 +209,6 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 
             if (budgetSnap.exists()) {
                 const loadedSettings = budgetSnap.data().settings;
-                // Explicitly remove any lingering theme property to clean up old data structures
-                if (loadedSettings.theme) {
-                    delete loadedSettings.theme;
-                }
                 const settings = { 
                     isVirtualProjectionEnabled: true,
                     isSliceEnabled: false,
@@ -308,28 +304,28 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-white flex flex-col justify-center items-center p-2 sm:p-4">
-            <div className="w-full max-w-md bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-2xl">
+        <div className="min-h-screen bg-gray-900 text-white flex flex-col justify-center items-center p-2 sm:p-4">
+            <div className="w-full max-w-md bg-gray-800 p-4 sm:p-6 rounded-lg shadow-2xl">
                 <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4">Predictive Budgeting</h1>
                 
                 {error && <p className="bg-red-500/20 text-red-300 p-2 rounded-md mb-3 text-center text-sm">{error}</p>}
 
                 <div className="space-y-4">
                     {/* Load Existing Budget Section */}
-                     <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
-                         <h2 className="text-lg font-semibold mb-3 border-b border-gray-200 dark:border-gray-600 pb-2">Load Existing Budget</h2>
-                         <div className="flex gap-2">
+                     <div className="bg-gray-700/50 p-3 rounded-md">
+                        <h2 className="text-lg font-semibold mb-3 border-b border-gray-600 pb-2">Load Existing Budget</h2>
+                        <div className="flex gap-2">
                              <input
-                                 type="text"
-                                 placeholder="Enter 3-7 digit Budget ID"
-                                 value={budgetIdInput}
-                                 onChange={(e) => setBudgetIdInput(e.target.value.toUpperCase())}
-                                 className="flex-grow bg-gray-200 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                type="text"
+                                placeholder="Enter 3-7 digit Budget ID"
+                                value={budgetIdInput}
+                                onChange={(e) => setBudgetIdInput(e.target.value.toUpperCase())}
+                                className="flex-grow bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
                             />
                             <button
-                                 onClick={handleLoadBudget}
-                                 disabled={isLoading}
-                                 className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
+                                onClick={handleLoadBudget}
+                                disabled={isLoading}
+                                className="bg-green-600 hover:bg-green-700 disabled:bg-green-800/50 text-white font-bold py-2 px-4 rounded-md transition duration-200 text-sm"
                             >
                                 {isLoading ? 'Loading...' : 'Load'}
                             </button>
@@ -340,31 +336,31 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                                 type="checkbox"
                                 checked={rememberId}
                                 onChange={(e) => setRememberId(e.target.checked)}
-                                className="form-checkbox h-4 w-4 text-cyan-600 bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-cyan-500"
+                                className="form-checkbox h-4 w-4 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
                             />
-                            <label htmlFor="remember-id" className="ml-2 text-xs text-gray-600 dark:text-gray-300">Remember Budget ID</label>
+                            <label htmlFor="remember-id" className="ml-2 text-xs text-gray-300">Remember Budget ID</label>
                         </div>
                     </div>
 
                     {/* Or Separator */}
                     <div className="flex items-center">
-                        <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
-                        <span className="flex-shrink mx-4 text-xs text-gray-500 dark:text-gray-400">OR</span>
-                        <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+                        <div className="flex-grow border-t border-gray-600"></div>
+                        <span className="flex-shrink mx-4 text-xs text-gray-400">OR</span>
+                        <div className="flex-grow border-t border-gray-600"></div>
                     </div>
 
                     {/* Create New Budget Section */}
-                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
-                        <h2 className="text-lg font-semibold mb-3 border-b border-gray-200 dark:border-gray-600 pb-2">Create a New Budget</h2>
+                    <div className="bg-gray-700/50 p-3 rounded-md">
+                        <h2 className="text-lg font-semibold mb-3 border-b border-gray-600 pb-2">Create a New Budget</h2>
                         <div className="space-y-3">
                             <div>
-                                <label htmlFor="years" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Years to Budget Forward</label>
-                                <div className="flex items-center justify-between bg-gray-200 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5">
+                                <label htmlFor="years" className="block text-sm font-medium text-gray-300 mb-1">Years to Budget Forward</label>
+                                <div className="flex items-center justify-between bg-gray-900 border border-gray-600 rounded-md px-3 py-1.5">
                                     <button
                                         type="button"
                                         onClick={() => setYears(y => Math.max(1, y - 1))}
                                         disabled={years <= 1}
-                                        className="text-xl font-bold text-cyan-600 dark:text-cyan-400 disabled:text-gray-400 dark:disabled:text-gray-600 px-2"
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600 px-2"
                                     >
                                         -
                                     </button>
@@ -373,19 +369,19 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
                                         type="button"
                                         onClick={() => setYears(y => Math.min(10, y + 1))}
                                         disabled={years >= 10}
-                                        className="text-xl font-bold text-cyan-600 dark:text-cyan-400 disabled:text-gray-400 dark:disabled:text-gray-600 px-2"
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600 px-2"
                                     >
                                         +
                                     </button>
                                 </div>
                             </div>
                             <div>
-                                <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Your Time Zone</label>
+                                <label htmlFor="timezone" className="block text-sm font-medium text-gray-300 mb-1">Your Time Zone</label>
                                 <select
                                     id="timezone"
                                     value={timeZone}
                                     onChange={(e) => setTimeZone(e.target.value)}
-                                    className="w-full bg-gray-200 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                                    className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                                 >
                                     {timezones.map(tz => <option key={tz.value} value={tz.value}>{tz.name}</option>)}
                                 </select>
@@ -410,7 +406,7 @@ const SetupScreen = ({ onBudgetLoaded, db, userId }) => {
 /**
  * Main application dashboard view.
  */
-const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, db, onBudgetIdChange, onSettingsChange, virtualDate, onLogout }) => {
+const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, db, onBudgetIdChange, onSettingsChange, virtualDate }) => {
     const [rules, setRules] = React.useState(initialRules);
     const [transactions, setTransactions] = React.useState(initialTransactions);
     const [isLoading, setIsLoading] = React.useState(false);
@@ -469,10 +465,6 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
         date: formatDateInTimeZone(new Date(), settings.timeZone)
     });
 
-    React.useEffect(() => {
-        setLocalSettings(settings);
-    }, [settings]);
-
     const clearVirtualTransactions = React.useCallback(() => {
         if (virtualTransactions.length > 0) {
             setVirtualTransactions([]);
@@ -507,18 +499,6 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             return { ...t, balance: runningBalance, postedBalance: postedRunningBalance };
         });
     }, [transactions]);
-
-     const mostRecentPostedId = React.useMemo(() => {
-        const postedTransactions = transactionsWithBalance.filter(t => t.isPosted);
-        if (postedTransactions.length === 0) return null;
-
-        const latestDate = postedTransactions.reduce((max, t) => t.date > max ? t.date : max, postedTransactions[0].date);
-        
-        const latestOnDate = postedTransactions.filter(t => t.date === latestDate);
-
-        return latestOnDate[latestOnDate.length - 1].id;
-
-    }, [transactionsWithBalance]);
 
     const filteredTransactions = React.useMemo(() => {
         let transactionsToFilter = transactionsWithBalance;
@@ -773,9 +753,9 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             const batch = writeBatch(db);
             const transactionsWithIds = [];
             newTransactions.forEach(trans => {
-               const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
-               batch.set(transRef, trans);
-               transactionsWithIds.push({ id: transRef.id, ...trans });
+                 const transRef = doc(collection(db, `artifacts/${appId}/public/data/budgets/${budgetId}/transactions`));
+                 batch.set(transRef, trans);
+                 transactionsWithIds.push({ id: transRef.id, ...trans });
             });
             await batch.commit();
 
@@ -1188,7 +1168,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
     
         setVirtualTransactions(prev => [...prev, ...newVirtuals]);
         setIsGeneratingVirtuals(false);
-    }, [rules, transactions, virtualTransactions, settings.timeZone]);
+    }, [rules, transactions, virtualTransactions, settings.timeZone, isGeneratingVirtuals]);
 
     const handleScroll = (e) => {
         // Check if the feature is enabled in the current settings
@@ -1209,44 +1189,35 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
 
 
     return (
-        <div className="h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 p-1 md:p-4 font-sans flex flex-col">
+        <div className="h-screen bg-gray-900 text-gray-200 p-1 md:p-4 font-sans flex flex-col">
             {isLoading && <div className="fixed top-0 left-0 w-full h-full bg-black/50 flex items-center justify-center z-50"><div className="text-white text-xl">Processing...</div></div>}
 
-            <div className="w-full max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col flex-grow min-h-0">
-                <div className="flex justify-between border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex-grow">
-                        <button 
-                            onClick={() => { setActiveTab('ledger'); }}
-                            className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'ledger' ? 'bg-white dark:bg-gray-800 text-cyan-500 dark:text-cyan-400 border-b-2 border-cyan-500' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}
-                        >
-                            Transaction Ledger
-                        </button>
-                        <button 
-                            onClick={() => { setActiveTab('rules'); clearVirtualTransactions(); }}
-                            className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'rules' ? 'bg-white dark:bg-gray-800 text-cyan-500 dark:text-cyan-400 border-b-2 border-cyan-500' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}
-                        >
-                            Budget Rules
-                        </button>
-                         <button 
-                            onClick={() => { setActiveTab('settings'); clearVirtualTransactions(); }}
-                            className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'settings' ? 'bg-white dark:bg-gray-800 text-cyan-500 dark:text-cyan-400 border-b-2 border-cyan-500' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}
-                        >
-                            Settings
-                        </button>
-                        <button
-                            onClick={() => { clearVirtualTransactions(); setQuickAddForm({ name: '', amount: '', date: todayString }); setIsQuickAddModalOpen(true); }}
-                            className="py-2 px-4 text-lg font-bold text-green-500 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                            title="Quick Add Transaction"
-                        >
-                            +
-                        </button>
-                    </div>
-                     <button
-                        onClick={onLogout}
-                        className="py-2 px-4 text-sm font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300 transition-colors"
-                        title="Logout & Return"
+            <div className="w-full max-w-4xl mx-auto bg-gray-800 rounded-lg shadow-lg flex flex-col flex-grow min-h-0">
+                <div className="flex border-b border-gray-700">
+                    <button 
+                        onClick={() => { setActiveTab('ledger'); }}
+                        className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'ledger' ? 'bg-gray-800 text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:bg-gray-700/50'}`}
                     >
-                        Logout
+                        Transaction Ledger
+                    </button>
+                    <button 
+                        onClick={() => { setActiveTab('rules'); clearVirtualTransactions(); }}
+                        className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'rules' ? 'bg-gray-800 text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:bg-gray-700/50'}`}
+                    >
+                        Budget Rules
+                    </button>
+                     <button 
+                        onClick={() => { setActiveTab('settings'); clearVirtualTransactions(); }}
+                        className={`py-2 px-4 text-sm font-medium transition-colors duration-200 ${activeTab === 'settings' ? 'bg-gray-800 text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:bg-gray-700/50'}`}
+                    >
+                        Settings
+                    </button>
+                    <button
+                        onClick={() => { clearVirtualTransactions(); setQuickAddForm({ name: '', amount: '', date: todayString }); setIsQuickAddModalOpen(true); }}
+                        className="py-2 px-4 text-lg font-bold text-green-400 hover:bg-gray-700/50"
+                        title="Quick Add Transaction"
+                    >
+                        +
                     </button>
                 </div>
                 
@@ -1254,42 +1225,42 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 {activeTab === 'ledger' && (
                 <div className="p-2 md:p-4 flex flex-col flex-grow min-h-0">
                     <div className="md:flex justify-between items-center mb-2">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Transactions</h2>
+                        <h2 className="text-lg font-semibold text-white">Transactions</h2>
                         {!isSliceViewActive && (
                         <div className="hidden md:flex gap-2 text-sm relative">
                             {/* Desktop Filters */}
                             <div ref={dateFilterRef} className="relative">
-                                <button onClick={() => setIsDateFilterOpen(prev => !prev)} className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded w-32 text-left relative">
+                                <button onClick={() => setIsDateFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left relative">
                                     Date: {dateFilter.mode === 'future' ? 'Future' : dateFilter.mode === 'all' ? 'All Time' : 'Custom'}
                                     {pastDueCount > 0 && (
-                                        <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white dark:border-gray-800">
+                                        <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-gray-800">
                                             {pastDueCount}
                                         </span>
                                     )}
                                 </button>
                                 {isDateFilterOpen && (
-                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-72 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
-                                    <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600">From Today Onwards</button>
-                                    <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600">All Transactions</button>
-                                    <div className="border-t border-gray-200 dark:border-gray-600 pt-3 space-y-2">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Custom Date Range:</p>
-                                        <div><label className="text-xs">Start</label><input type="date" value={tempDateRange.start} onChange={e => setTempDateRange(p => ({...p, start: e.target.value}))} className="w-full bg-gray-200 dark:bg-gray-800 p-1 rounded text-sm" /></div>
-                                        <div><label className="text-xs">End</label><input type="date" value={tempDateRange.end} onChange={e => setTempDateRange(p => ({...p, end: e.target.value}))} className="w-full bg-gray-200 dark:bg-gray-800 p-1 rounded text-sm" /></div>
-                                        <button onClick={applyDateRangeFilter} className="w-full bg-cyan-600 hover:bg-cyan-700 px-3 py-1 rounded text-sm text-white">Apply</button>
+                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
+                                    <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">From Today Onwards</button>
+                                    <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">All Transactions</button>
+                                    <div className="border-t border-gray-600 pt-3 space-y-2">
+                                        <p className="text-xs text-gray-400">Custom Date Range:</p>
+                                        <div><label className="text-xs">Start</label><input type="date" value={tempDateRange.start} onChange={e => setTempDateRange(p => ({...p, start: e.target.value}))} className="w-full bg-gray-800 p-1 rounded text-sm" /></div>
+                                        <div><label className="text-xs">End</label><input type="date" value={tempDateRange.end} onChange={e => setTempDateRange(p => ({...p, end: e.target.value}))} className="w-full bg-gray-800 p-1 rounded text-sm" /></div>
+                                        <button onClick={applyDateRangeFilter} className="w-full bg-cyan-600 hover:bg-cyan-700 px-3 py-1 rounded text-sm">Apply</button>
                                     </div>
                                 </div>
                                 )}
                             </div>
                             <div ref={ruleFilterRef} className="relative">
-                                <button onClick={() => setIsRuleFilterOpen(prev => !prev)} className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded w-32 text-left truncate">
+                                <button onClick={() => setIsRuleFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left truncate">
                                     Rules: {selectedRuleIds.length === 0 ? 'All' : `${selectedRuleIds.length} Selected`}
                                 </button>
                                 {isRuleFilterOpen && (
-                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-56 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-10 p-2">
+                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-2">
                                      <div className="max-h-48 overflow-y-auto text-sm">
-                                         <div onClick={() => setSelectedRuleIds([])} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.length === 0} /><span className="font-bold">All Rules</span></div>
+                                         <div onClick={() => setSelectedRuleIds([])} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.length === 0} /><span className="font-bold">All Rules</span></div>
                                          {sortedRules.map(rule => (
-                                             <div key={rule.id} onClick={() => handleRuleFilterChange(rule.id)} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.includes(rule.id)} /><span className="truncate">{rule.name}</span></div>
+                                             <div key={rule.id} onClick={() => handleRuleFilterChange(rule.id)} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.includes(rule.id)} /><span className="truncate">{rule.name}</span></div>
                                          ))}
                                      </div>
                                 </div>
@@ -1298,12 +1269,12 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                         </div>
                         )}
                     </div>
-                     <div className="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700 mb-2">
-                        <div className="text-xs text-cyan-600 dark:text-cyan-400">
+                     <div className="flex justify-between items-center pb-2 border-b border-gray-700 mb-2">
+                        <div className="text-xs text-cyan-400">
                             ID: 
                             <span 
                                 onClick={() => { clearVirtualTransactions(); setNewBudgetIdInput(budgetId); setModalError(''); setIsEditBudgetIdModalOpen(true); }}
-                                className="font-mono bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ml-1"
+                                className="font-mono bg-gray-700 px-1 py-0.5 rounded cursor-pointer hover:bg-gray-600 transition-colors ml-1"
                                 title="Click to change Budget ID"
                             >
                                 {budgetId}
@@ -1313,37 +1284,37 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                         <div className="flex md:hidden gap-2 text-sm relative">
                             {/* Mobile Filters */}
                             <div ref={dateFilterRef} className="relative">
-                                <button onClick={() => setIsDateFilterOpen(prev => !prev)} className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded w-32 text-left relative">
+                                <button onClick={() => setIsDateFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left relative">
                                     Date: {dateFilter.mode === 'future' ? 'Future' : dateFilter.mode === 'all' ? 'All Time' : 'Custom'}
                                     {pastDueCount > 0 && (
-                                        <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white dark:border-gray-800">
+                                        <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-gray-800">
                                             {pastDueCount}
                                         </span>
                                     )}
                                 </button>
                                 {isDateFilterOpen && (
-                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-72 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
-                                    <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600">From Today Onwards</button>
-                                    <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600">All Transactions</button>
-                                    <div className="border-t border-gray-200 dark:border-gray-600 pt-3 space-y-2">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Custom Date Range:</p>
-                                        <div><label className="text-xs">Start</label><input type="date" value={tempDateRange.start} onChange={e => setTempDateRange(p => ({...p, start: e.target.value}))} className="w-full bg-gray-200 dark:bg-gray-800 p-1 rounded text-sm" /></div>
-                                        <div><label className="text-xs">End</label><input type="date" value={tempDateRange.end} onChange={e => setTempDateRange(p => ({...p, end: e.target.value}))} className="w-full bg-gray-200 dark:bg-gray-800 p-1 rounded text-sm" /></div>
-                                        <button onClick={applyDateRangeFilter} className="w-full bg-cyan-600 hover:bg-cyan-700 px-3 py-1 rounded text-sm text-white">Apply</button>
+                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-72 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-4 space-y-3">
+                                    <button onClick={() => { setDateFilter({ mode: 'future' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">From Today Onwards</button>
+                                    <button onClick={() => { setDateFilter({ mode: 'all' }); setTempDateRange({ start: '', end: '' }); setIsDateFilterOpen(false); }} className="w-full text-left p-2 rounded hover:bg-gray-600">All Transactions</button>
+                                    <div className="border-t border-gray-600 pt-3 space-y-2">
+                                        <p className="text-xs text-gray-400">Custom Date Range:</p>
+                                        <div><label className="text-xs">Start</label><input type="date" value={tempDateRange.start} onChange={e => setTempDateRange(p => ({...p, start: e.target.value}))} className="w-full bg-gray-800 p-1 rounded text-sm" /></div>
+                                        <div><label className="text-xs">End</label><input type="date" value={tempDateRange.end} onChange={e => setTempDateRange(p => ({...p, end: e.target.value}))} className="w-full bg-gray-800 p-1 rounded text-sm" /></div>
+                                        <button onClick={applyDateRangeFilter} className="w-full bg-cyan-600 hover:bg-cyan-700 px-3 py-1 rounded text-sm">Apply</button>
                                     </div>
                                 </div>
                                 )}
                             </div>
                             <div ref={ruleFilterRef} className="relative">
-                                <button onClick={() => setIsRuleFilterOpen(prev => !prev)} className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded w-32 text-left truncate">
+                                <button onClick={() => setIsRuleFilterOpen(prev => !prev)} className="bg-gray-700 px-3 py-1 rounded w-32 text-left truncate">
                                     Rules: {selectedRuleIds.length === 0 ? 'All' : `${selectedRuleIds.length} Selected`}
                                 </button>
                                 {isRuleFilterOpen && (
-                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-56 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-10 p-2">
+                                <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full right-0 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10 p-2">
                                      <div className="max-h-48 overflow-y-auto text-sm">
-                                         <div onClick={() => setSelectedRuleIds([])} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.length === 0} /><span className="font-bold">All Rules</span></div>
+                                         <div onClick={() => setSelectedRuleIds([])} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.length === 0} /><span className="font-bold">All Rules</span></div>
                                          {sortedRules.map(rule => (
-                                             <div key={rule.id} onClick={() => handleRuleFilterChange(rule.id)} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.includes(rule.id)} /><span className="truncate">{rule.name}</span></div>
+                                             <div key={rule.id} onClick={() => handleRuleFilterChange(rule.id)} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-600 cursor-pointer"><input type="checkbox" readOnly checked={selectedRuleIds.includes(rule.id)} /><span className="truncate">{rule.name}</span></div>
                                          ))}
                                      </div>
                                 </div>
@@ -1353,7 +1324,7 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                         )}
                     </div>
                      {settings.isSliceEnabled && (
-                        <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700 mb-2 text-sm">
+                        <div className="flex justify-between items-center py-2 border-b border-gray-700 mb-2 text-sm">
                             <div className="flex items-center gap-2">
                                 <input
                                     type="checkbox"
@@ -1368,52 +1339,52 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                             setCurrentSliceIndex(todaySlice ? todaySlice.index : (availableSlices[0]?.index || 0));
                                         }
                                     }}
-                                    className="form-checkbox h-4 w-4 text-indigo-500 bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500"
+                                    className="form-checkbox h-4 w-4 text-indigo-500 bg-gray-800 border-gray-600 rounded focus:ring-indigo-500"
                                 />
-                                <label htmlFor="slice-toggle" className="font-medium text-gray-800 dark:text-white">
+                                <label htmlFor="slice-toggle" className="font-medium text-white">
                                     View in Slices
                                 </label>
                             </div>
                             {isSliceViewActive && (
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => setCurrentSliceIndex(i => i - 1)} className="bg-gray-200 dark:bg-gray-700 p-1 rounded-full text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
+                                    <button onClick={() => setCurrentSliceIndex(i => i - 1)} className="bg-gray-700 p-1 rounded-full text-white hover:bg-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
                                      <div ref={sliceSelectorRef} className="relative">
-                                         <button 
-                                             onClick={() => setIsSliceSelectorOpen(prev => !prev)} 
-                                             className="font-mono text-xs text-center w-48 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded p-1"
+                                        <button 
+                                            onClick={() => setIsSliceSelectorOpen(prev => !prev)} 
+                                            className="font-mono text-xs text-center w-48 bg-gray-700 hover:bg-gray-600 rounded p-1"
                                         >
-                                             {`${calculateSliceRange(currentSliceIndex)?.start || ''} - ${calculateSliceRange(currentSliceIndex)?.end || ''}`}
-                                         </button>
-                                         {isSliceSelectorOpen && (
-                                             <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-20">
-                                                 <div className="max-h-60 overflow-y-auto text-sm p-2">
-                                                     {availableSlices.map(slice => (
-                                                         <div 
-                                                             key={slice.index} 
-                                                             onClick={() => {
-                                                                 setCurrentSliceIndex(slice.index);
-                                                                 setIsSliceSelectorOpen(false);
-                                                             }}
-                                                             className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer text-center"
+                                            {`${calculateSliceRange(currentSliceIndex)?.start || ''} - ${calculateSliceRange(currentSliceIndex)?.end || ''}`}
+                                        </button>
+                                        {isSliceSelectorOpen && (
+                                            <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-20">
+                                                <div className="max-h-60 overflow-y-auto text-sm p-2">
+                                                    {availableSlices.map(slice => (
+                                                        <div 
+                                                            key={slice.index} 
+                                                            onClick={() => {
+                                                                setCurrentSliceIndex(slice.index);
+                                                                setIsSliceSelectorOpen(false);
+                                                            }}
+                                                            className="p-2 rounded hover:bg-gray-600 cursor-pointer text-center"
                                                         >
-                                                             {`${slice.range.start} - ${slice.range.end}`}
-                                                         </div>
-                                                     ))}
-                                                 </div>
-                                             </div>
-                                         )}
-                                     </div>
-                                    <button onClick={() => setCurrentSliceIndex(i => i + 1)} className="bg-gray-200 dark:bg-gray-700 p-1 rounded-full text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
+                                                            {`${slice.range.start} - ${slice.range.end}`}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={() => setCurrentSliceIndex(i => i + 1)} className="bg-gray-700 p-1 rounded-full text-white hover:bg-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
                                 </div>
                             )}
                         </div>
                     )}
                     <div className="flex-grow overflow-y-auto pr-2" onScroll={handleScroll}>
                         {allVisibleTransactions.map(t => (
-                            <div key={t.id || t.key} className={`text-xs p-1.5 rounded mb-1 grid grid-cols-12 items-center gap-2 ${t.isVirtual ? 'opacity-60' : ''} ${t.id === mostRecentPostedId ? 'bg-green-100 dark:bg-green-900/30' : (t.date === todayString && !t.isVirtual ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700/50')}`}>
+                            <div key={t.id || t.key} className={`text-xs p-1.5 rounded mb-1 grid grid-cols-12 items-center gap-2 ${t.isVirtual ? 'opacity-60' : ''} ${t.date === todayString && !t.isVirtual ? 'bg-blue-900/30' : 'bg-gray-700/50'}`}>
                                 <div className="col-span-1 flex justify-center items-center space-x-2">
                                      {!t.isVirtual && t.note && t.note.trim() !== '' && (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                                             <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
                                             <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
                                         </svg>
@@ -1423,36 +1394,36 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                             type="checkbox" 
                                             checked={!!t.isPosted} 
                                             onChange={() => handleTogglePosted(t)}
-                                            className="form-checkbox h-3.5 w-3.5 text-cyan-600 bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-cyan-500"
+                                            className="form-checkbox h-3.5 w-3.5 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
                                         />
                                     )}
                                 </div>
                                 <div className={`col-span-11 grid grid-cols-11 items-center gap-2 ${!t.isVirtual && 'cursor-pointer'}`} onClick={t.isVirtual ? undefined : () => openEditModal(t)}>
-                                    <div className="font-semibold text-gray-900 dark:text-white col-span-4 relative pr-8">
+                                    <div className="font-semibold text-white col-span-4 relative pr-8">
                                         <p className="truncate">{t.name}</p>
                                         <div className="absolute top-0 right-0 h-full flex items-center">
                                             {t.isModified && <span className="text-red-500 font-bold ml-1" title="Modified">(M)</span>}
                                             {t.date < todayString && !t.isPosted && <span className="text-red-500 font-bold ml-1 animate-pulse" title="Past Due">(!)</span>}
                                         </div>
                                     </div>
-                                    <span className="font-mono text-gray-500 dark:text-gray-300 col-span-2">{t.date}</span>
-                                    <span className={`font-mono text-right col-span-2 ${t.amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>${t.amount.toFixed(2)}</span>
+                                    <span className="font-mono text-gray-300 col-span-2">{t.date}</span>
+                                    <span className={`font-mono text-right col-span-2 ${t.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>${t.amount.toFixed(2)}</span>
                                     <div className="col-span-3 text-right pr-2 flex justify-end items-center">
                                         {t.balance.toFixed(2) === t.postedBalance.toFixed(2) && !t.isVirtual ? (
-                                            <span className="text-gray-400 dark:text-gray-600 font-mono text-lg mr-1">[</span>
+                                            <span className="text-gray-600 font-mono text-lg mr-1">[</span>
                                         ) : (
                                             <span className="text-transparent font-mono text-lg mr-1">[</span>
                                         )}
                                         <div>
-                                            <span className={`font-mono block ${t.balance >= 0 ? 'text-gray-600 dark:text-gray-300' : 'text-orange-500 dark:text-orange-400'}`} title="Overall Balance">${t.balance.toFixed(2)}</span>
-                                            <span className={`font-mono block text-xs ${t.postedBalance >= 0 ? 'text-cyan-600 dark:text-cyan-400' : 'text-cyan-800 dark:text-cyan-600'}`} title="Posted Items Balance">${t.postedBalance.toFixed(2)}</span>
+                                            <span className={`font-mono block ${t.balance >= 0 ? 'text-gray-300' : 'text-orange-400'}`} title="Overall Balance">${t.balance.toFixed(2)}</span>
+                                            <span className={`font-mono block text-xs ${t.postedBalance >= 0 ? 'text-cyan-400' : 'text-cyan-600'}`} title="Posted Items Balance">${t.postedBalance.toFixed(2)}</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         ))}
                         {isGeneratingVirtuals && <p className="text-center text-xs text-gray-500 py-2">Generating predictions...</p>}
-                        {allVisibleTransactions.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 mt-4">No transactions match the current filters.</p>}
+                        {allVisibleTransactions.length === 0 && <p className="text-center text-gray-400 mt-4">No transactions match the current filters.</p>}
                     </div>
                 </div>
                 )}
@@ -1461,11 +1432,11 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 {activeTab === 'rules' && (
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <h2 className="text-lg font-semibold mb-2 border-b border-gray-200 dark:border-gray-700 pb-2 text-gray-900 dark:text-white">Add New Rule</h2>
+                        <h2 className="text-lg font-semibold mb-2 border-b border-gray-700 pb-2 text-white">Add New Rule</h2>
                          <form onSubmit={handleAddRule} className="grid grid-cols-2 gap-3 text-sm">
-                            <input name="name" value={ruleForm.name} onChange={handleRuleFormChange} placeholder="Rule Name (e.g., Rent)" className="col-span-2 bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                            <input name="amount" type="number" step="0.01" value={ruleForm.amount} onChange={handleRuleFormChange} placeholder="Amount" className="bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                            <select name="frequency" value={ruleForm.frequency} onChange={handleRuleFormChange} className="bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                            <input name="name" value={ruleForm.name} onChange={handleRuleFormChange} placeholder="Rule Name (e.g., Rent)" className="col-span-2 bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                            <input name="amount" type="number" step="0.01" value={ruleForm.amount} onChange={handleRuleFormChange} placeholder="Amount" className="bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                            <select name="frequency" value={ruleForm.frequency} onChange={handleRuleFormChange} className="bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
                                 <option value="one-time">One-Time</option>
                                 <option value="daily">Daily</option>
                                 <option value="weekly">Weekly</option>
@@ -1473,25 +1444,25 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 <option value="monthly">Monthly</option>
                                 <option value="annual">Annual</option>
                             </select>
-                            <div className="col-span-1"><label className="text-xs text-gray-500 dark:text-gray-400">Start Date</label><input name="startDate" type="date" value={ruleForm.startDate} onChange={handleRuleFormChange} className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
-                            <div className="col-span-1"><label className="text-xs text-gray-500 dark:text-gray-400">End Date (Optional)</label><input name="endDate" type="date" value={ruleForm.endDate} onChange={handleRuleFormChange} className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                            <div className="col-span-1"><label className="text-xs text-gray-400">Start Date</label><input name="startDate" type="date" value={ruleForm.startDate} onChange={handleRuleFormChange} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                            <div className="col-span-1"><label className="text-xs text-gray-400">End Date (Optional)</label><input name="endDate" type="date" value={ruleForm.endDate} onChange={handleRuleFormChange} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
                             <button type="submit" className="col-span-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded transition duration-200">Add Rule</button>
                         </form>
                     </div>
                      <div>
-                        <h2 className="text-lg font-semibold mb-2 border-b border-gray-200 dark:border-gray-700 pb-2 text-gray-900 dark:text-white">Existing Rules</h2>
+                        <h2 className="text-lg font-semibold mb-2 border-b border-gray-700 pb-2 text-white">Existing Rules</h2>
                         <div className="max-h-80 overflow-y-auto pr-2">
                             {sortedRules.map(rule => (
-                                <div key={rule.id} className="text-sm bg-gray-50 dark:bg-gray-700/50 p-2 rounded mb-2 flex justify-between items-start">
+                                <div key={rule.id} className="text-sm bg-gray-700/50 p-2 rounded mb-2 flex justify-between items-start">
                                     <div className="flex-grow cursor-pointer" onClick={() => openRuleDetailModal(rule)}>
-                                        <p className="font-bold text-gray-900 dark:text-white flex items-baseline">
+                                        <p className="font-bold text-white flex items-baseline">
                                             <span>{rule.name}</span>
-                                            {rule.ruleIdentifier && <span className="ml-2 text-xs font-mono text-gray-500 dark:text-gray-500">{rule.ruleIdentifier}</span>}
+                                            {rule.ruleIdentifier && <span className="ml-2 text-xs font-mono text-gray-500">{rule.ruleIdentifier}</span>}
                                         </p>
-                                        <p className="text-gray-700 dark:text-gray-300">${rule.amount.toFixed(2)} - {rule.frequency}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Starts: {rule.startDate}</p>
+                                        <p className="text-gray-300">${rule.amount.toFixed(2)} - {rule.frequency}</p>
+                                        <p className="text-xs text-gray-400">Starts: {rule.startDate}</p>
                                     </div>
-                                    <button onClick={() => openDeleteModal(rule)} className="text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 font-bold p-1 rounded-full text-xs ml-2 flex-shrink-0">DELETE</button>
+                                    <button onClick={() => openDeleteModal(rule)} className="text-red-400 hover:text-red-300 font-bold p-1 rounded-full text-xs ml-2 flex-shrink-0">DELETE</button>
                                 </div>
                             ))}
                         </div>
@@ -1501,27 +1472,27 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                 {/* Settings View */}
                 {activeTab === 'settings' && (
                     <div className="p-4">
-                        <h2 className="text-lg font-semibold mb-4 border-b border-gray-200 dark:border-gray-700 pb-2 text-gray-900 dark:text-white">App Settings</h2>
+                        <h2 className="text-lg font-semibold mb-4 border-b border-gray-700 pb-2 text-white">App Settings</h2>
                         <div className="space-y-4 max-w-sm">
                              <div>
-                                <label htmlFor="timezone-setting" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Your Time Zone</label>
+                                <label htmlFor="timezone-setting" className="block text-sm font-medium text-gray-300 mb-1">Your Time Zone</label>
                                 <select
                                     id="timezone-setting"
                                     value={localSettings.timeZone}
                                     onChange={(e) => setLocalSettings(prev => ({...prev, timeZone: e.target.value}))}
-                                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                                    className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                                 >
                                     {timezones.map(tz => <option key={tz.value} value={tz.value}>{tz.name}</option>)}
                                 </select>
                             </div>
                              <div>
-                                <label htmlFor="years-setting" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Years to Budget Forward</label>
-                                 <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2">
+                                <label htmlFor="years-setting" className="block text-sm font-medium text-gray-300 mb-1">Years to Budget Forward</label>
+                                 <div className="flex items-center justify-between bg-gray-700 border border-gray-600 rounded-md px-3 py-2">
                                     <button
                                         type="button"
                                         onClick={() => setLocalSettings(prev => ({...prev, yearsForward: Math.max(1, prev.yearsForward - 1)}))}
                                         disabled={localSettings.yearsForward <= 1}
-                                        className="text-xl font-bold text-cyan-600 dark:text-cyan-400 disabled:text-gray-400 dark:disabled:text-gray-600"
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600"
                                     >
                                         -
                                     </button>
@@ -1530,15 +1501,15 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                         type="button"
                                         onClick={() => setLocalSettings(prev => ({...prev, yearsForward: Math.min(10, prev.yearsForward + 1)}))}
                                         disabled={localSettings.yearsForward >= 10}
-                                        className="text-xl font-bold text-cyan-600 dark:text-cyan-400 disabled:text-gray-400 dark:disabled:text-gray-600"
+                                        className="text-xl font-bold text-cyan-400 disabled:text-gray-600"
                                     >
                                         +
                                     </button>
                                 </div>
                             </div>
                             <div className="pt-4">
-                                 <label htmlFor="virtual-projection-toggle" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Virtual Transaction Projection</label>
-                                <div className="flex items-center bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md">
+                                 <label htmlFor="virtual-projection-toggle" className="block text-sm font-medium text-gray-300 mb-1">Virtual Transaction Projection</label>
+                                <div className="flex items-center bg-gray-700/50 p-2 rounded-md">
                                    <input
                                         type="checkbox"
                                         id="virtual-projection-toggle"
@@ -1552,21 +1523,21 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                                 setLocalSettings(prev => ({...prev, isVirtualProjectionEnabled: false}))
                                             }
                                         }}
-                                        className="form-checkbox h-5 w-5 text-cyan-600 bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-cyan-500"
+                                        className="form-checkbox h-5 w-5 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
                                     />
-                                    <span className="ml-3 text-sm text-gray-600 dark:text-gray-300">{localSettings.isVirtualProjectionEnabled ?? true ? 'Enabled' : 'Disabled'}</span>
+                                    <span className="ml-3 text-sm text-gray-300">{localSettings.isVirtualProjectionEnabled ?? true ? 'Enabled' : 'Disabled'}</span>
                                 </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 pl-1">When enabled, scroll to the bottom of the ledger to project future transactions.</p>
+                                <p className="text-xs text-gray-500 mt-1 pl-1">When enabled, scroll to the bottom of the ledger to project future transactions.</p>
                             </div>
                             <div className="pt-2">
-                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Budget Slices</label>
+                                 <label className="block text-sm font-medium text-gray-300 mb-1">Budget Slices</label>
                                 <button
                                     onClick={() => setIsSliceSetupModalOpen(true)}
                                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition duration-200"
                                 >
                                     {settings.isSliceEnabled ? 'Modify Slices' : 'Set Up Slices'}
                                 </button>
-                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 pl-1">View your budget in discrete periods (e.g., week by week).</p>
+                                <p className="text-xs text-gray-500 mt-1 pl-1">View your budget in discrete periods (e.g., week by week).</p>
                             </div>
                             <div className="pt-2">
                                 <button
@@ -1582,23 +1553,23 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
             </div>
 
             <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Transaction">
-                 <div className="text-sm text-gray-800 dark:text-white">
-                    <div className="pb-2 border-b border-gray-200 dark:border-gray-700 mb-4">
-                        <h4 className="font-bold text-lg text-gray-900 dark:text-white flex items-baseline">
+                 <div className="text-sm text-white">
+                    <div className="pb-2 border-b border-gray-700 mb-4">
+                        <h4 className="font-bold text-lg text-white flex items-baseline">
                            <span>{editingTransaction?.name}</span>
-                           {editingTransaction?.ruleIdentifier && <span className="ml-2 text-sm font-mono text-gray-500 dark:text-gray-400">{editingTransaction.ruleIdentifier}</span>}
+                           {editingTransaction?.ruleIdentifier && <span className="ml-2 text-sm font-mono text-gray-400">{editingTransaction.ruleIdentifier}</span>}
                         </h4>
-                        <p className="text-xs font-mono text-gray-500 dark:text-gray-500">ID: {editingTransaction?.id}</p>
+                        <p className="text-xs font-mono text-gray-500">ID: {editingTransaction?.id}</p>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-xs text-gray-500 dark:text-gray-400">Amount</label><input type="number" value={editForm.amount} onChange={e => setEditForm({...editForm, amount: e.target.value})} className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
-                        <div><label className="block text-xs text-gray-500 dark:text-gray-400">Date</label><input type="date" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                        <div><label className="block text-xs text-gray-400">Amount</label><input type="number" value={editForm.amount} onChange={e => setEditForm({...editForm, amount: e.target.value})} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                        <div><label className="block text-xs text-gray-400">Date</label><input type="date" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
                         <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400">Note</label>
+                            <label className="block text-xs text-gray-400">Note</label>
                             <textarea
                                 value={editForm.note}
                                 onChange={e => setEditForm({...editForm, note: e.target.value})}
-                                className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+                                className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
                                 rows="3"
                             />
                         </div>
@@ -1608,66 +1579,66 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                 type="checkbox"
                                 checked={updateFuture}
                                 onChange={(e) => setUpdateFuture(e.target.checked)}
-                                className="form-checkbox h-4 w-4 text-cyan-600 bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-cyan-500"
+                                className="form-checkbox h-4 w-4 text-cyan-600 bg-gray-800 border-gray-600 rounded focus:ring-cyan-500"
                                 disabled={!editingTransaction?.ruleId}
                             />
-                            <label htmlFor="update-future-checkbox" className={`ml-2 text-xs ${!editingTransaction?.ruleId ? 'text-gray-500' : 'text-gray-600 dark:text-gray-300'}`}>
+                            <label htmlFor="update-future-checkbox" className={`ml-2 text-xs ${!editingTransaction?.ruleId ? 'text-gray-500' : 'text-gray-300'}`}>
                                 Modify all future transactions { !editingTransaction?.ruleId && "(N/A for one-time)" }
                             </label>
                         </div>
 
                         <div className="flex justify-between items-center pt-4">
-                             <button onClick={() => {setIsEditModalOpen(false); setIsDeleteTransactionModalOpen(true);}} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white">Delete</button>
-                             <button onClick={() => handleUpdateTransaction(updateFuture)} className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded text-white">Save Changes</button>
+                             <button onClick={() => {setIsEditModalOpen(false); setIsDeleteTransactionModalOpen(true);}} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Delete</button>
+                             <button onClick={() => handleUpdateTransaction(updateFuture)} className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded">Save Changes</button>
                         </div>
                     </div>
                  </div>
             </Modal>
             <Modal isOpen={isQuickAddModalOpen} onClose={() => setIsQuickAddModalOpen(false)} title="Quick Add Transaction">
-                <form onSubmit={handleQuickAddTransaction} className="space-y-4 text-sm text-gray-800 dark:text-white">
+                <form onSubmit={handleQuickAddTransaction} className="space-y-4 text-sm text-white">
                     <div>
-                        <label className="block text-xs text-gray-500 dark:text-gray-400">Transaction Name</label>
+                        <label className="block text-xs text-gray-400">Transaction Name</label>
                         <input
                             type="text"
                             name="name"
                             value={quickAddForm.name}
                             onChange={handleQuickAddFormChange}
-                            className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                             required
                         />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-500 dark:text-gray-400">Amount</label>
+                        <label className="block text-xs text-gray-400">Amount</label>
                         <input
                             type="number"
                             name="amount"
                             step="0.01"
                             value={quickAddForm.amount}
                             onChange={handleQuickAddFormChange}
-                            className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                             required
                         />
                     </div>
                      <div>
-                        <label className="block text-xs text-gray-500 dark:text-gray-400">Date</label>
+                        <label className="block text-xs text-gray-400">Date</label>
                         <input
                             type="date"
                             name="date"
                             value={quickAddForm.date}
                             onChange={handleQuickAddFormChange}
-                            className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                             required
                         />
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
-                        <button type="button" onClick={() => setIsQuickAddModalOpen(false)} className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
-                        <button type="submit" className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-white">Add Transaction</button>
+                        <button type="button" onClick={() => setIsQuickAddModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button type="submit" className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Add Transaction</button>
                     </div>
                 </form>
             </Modal>
             <Modal isOpen={isSliceSetupModalOpen} onClose={() => setIsSliceSetupModalOpen(false)} title="Setup Budget Slices">
-                 <div className="space-y-4 text-sm text-gray-800 dark:text-white">
-                    <div className="flex items-center bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md">
+                 <div className="space-y-4 text-sm text-white">
+                    <div className="flex items-center bg-gray-700/50 p-2 rounded-md">
                         <input
                             type="checkbox"
                             id="slice-enabled-toggle"
@@ -1680,24 +1651,24 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                                     setLocalSettings(prev => ({...prev, isSliceEnabled: false}))
                                 }
                             }}
-                            className="form-checkbox h-5 w-5 text-indigo-500 bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500"
+                            className="form-checkbox h-5 w-5 text-indigo-500 bg-gray-800 border-gray-600 rounded focus:ring-indigo-500"
                         />
-                        <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">{localSettings.isSliceEnabled ? 'Slices Enabled' : 'Slices Disabled'}</span>
+                        <span className="ml-3 text-sm text-gray-300">{localSettings.isSliceEnabled ? 'Slices Enabled' : 'Slices Disabled'}</span>
                     </div>
                     {localSettings.isSliceEnabled && (
                         <>
                         <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400">Slice Start Date</label>
+                            <label className="block text-xs text-gray-400">Slice Start Date</label>
                             <input
                                 type="date"
                                 value={localSettings.sliceStartDate || ''}
                                 onChange={e => setLocalSettings(prev => ({...prev, sliceStartDate: e.target.value}))}
-                                className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600"
+                                className="w-full bg-gray-700 p-2 rounded border border-gray-600"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400">Slice Frequency</label>
-                             <select value={localSettings.sliceFrequency} onChange={e => setLocalSettings(prev => ({...prev, sliceFrequency: e.target.value}))} className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600">
+                            <label className="block text-xs text-gray-400">Slice Frequency</label>
+                             <select value={localSettings.sliceFrequency} onChange={e => setLocalSettings(prev => ({...prev, sliceFrequency: e.target.value}))} className="w-full bg-gray-700 p-2 rounded border border-gray-600">
                                 <option value="weekly">Weekly</option>
                                 <option value="bi-weekly">Bi-Weekly</option>
                                 <option value="monthly">Monthly</option>
@@ -1706,61 +1677,61 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                         </div>
                         </>
                     )}
-                    <p className="text-xs text-orange-500 dark:text-orange-300 bg-orange-100 dark:bg-orange-500/10 p-2 rounded-md">
+                    <p className="text-xs text-orange-300 bg-orange-500/10 p-2 rounded-md">
                         Note: Enabling Budget Slices will disable the Virtual Transaction Projection feature.
                     </p>
                     <div className="flex justify-end gap-3 pt-4">
-                        <button type="button" onClick={() => setIsSliceSetupModalOpen(false)} className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
-                        <button type="button" onClick={handleSliceSetupSave} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded">Save Slice Settings</button>
+                        <button type="button" onClick={() => setIsSliceSetupModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button type="button" onClick={handleSliceSetupSave} className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded">Save Slice Settings</button>
                     </div>
                  </div>
             </Modal>
              <Modal isOpen={isDeleteTransactionModalOpen} onClose={() => setIsDeleteTransactionModalOpen(false)} title="Confirm Deletion">
-                 <div className="space-y-4 text-sm text-gray-800 dark:text-white">
+                 <div className="space-y-4 text-sm text-white">
                     <p>Are you sure you want to delete this transaction?</p>
-                    <p className="text-xs text-orange-500 dark:text-orange-300 bg-orange-100 dark:bg-orange-500/10 p-2 rounded-md">This action cannot be undone.</p>
+                    <p className="text-xs text-orange-300 bg-orange-500/10 p-2 rounded-md">This action cannot be undone.</p>
                      <div className="flex justify-end gap-3 pt-2">
-                         <button onClick={() => {setIsDeleteTransactionModalOpen(false); setIsEditModalOpen(true);}} className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
-                         <button onClick={handleDeleteTransaction} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">Confirm Delete</button>
+                         <button onClick={() => {setIsDeleteTransactionModalOpen(false); setIsEditModalOpen(true);}} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                         <button onClick={handleDeleteTransaction} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Confirm Delete</button>
                      </div>
                  </div>
             </Modal>
             <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Confirm Deletion">
-                 <div className="space-y-4 text-sm text-gray-800 dark:text-white">
+                 <div className="space-y-4 text-sm text-white">
                     <p>Are you sure you want to delete the rule <span className="font-bold">{ruleToDelete?.name}</span>?</p>
-                    <p className="text-xs text-orange-500 dark:text-orange-300 bg-orange-100 dark:bg-orange-500/10 p-2 rounded-md">This will permanently delete the rule and all of its associated transactions. This action cannot be undone.</p>
+                    <p className="text-xs text-orange-300 bg-orange-500/10 p-2 rounded-md">This will permanently delete the rule and all of its associated transactions. This action cannot be undone.</p>
                      <div className="flex justify-end gap-3 pt-2">
-                         <button onClick={() => setIsDeleteModalOpen(false)} className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
-                         <button onClick={handleDeleteRule} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">Confirm Delete</button>
+                         <button onClick={() => setIsDeleteModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                         <button onClick={handleDeleteRule} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Confirm Delete</button>
                      </div>
                  </div>
             </Modal>
             <Modal isOpen={isPostFutureModalOpen} onClose={() => setIsPostFutureModalOpen(false)} title="Post Future Transaction">
-                <div className="space-y-4 text-sm text-gray-800 dark:text-white">
+                <div className="space-y-4 text-sm text-white">
                     <p>This transaction is dated in the future. Future transactions cannot be posted directly.</p>
                     <p>Would you like to move this transaction's date to today (<span className="font-mono">{todayString}</span>) and post it?</p>
                     <div className="flex justify-end gap-3 pt-2">
-                        <button onClick={() => setIsPostFutureModalOpen(false)} className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
-                        <button onClick={handleConfirmPostFutureTransaction} className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded">Move and Post</button>
+                        <button onClick={() => setIsPostFutureModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button onClick={handleConfirmPostFutureTransaction} className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded">Move and Post</button>
                     </div>
                 </div>
             </Modal>
             <Modal isOpen={isRuleDetailModalOpen} onClose={() => setIsRuleDetailModalOpen(false)} title={`Transactions for "${selectedRuleForDetails?.name} ${selectedRuleForDetails?.ruleIdentifier ? `(${selectedRuleForDetails.ruleIdentifier})` : ''}"`}>
-                <div className="max-h-96 overflow-y-auto pr-2 text-sm text-gray-800 dark:text-white">
+                <div className="max-h-96 overflow-y-auto pr-2 text-sm text-white">
                     {transactions
                         .filter(t => t.ruleId === selectedRuleForDetails?.id)
                         .sort((a, b) => new Date(a.date) - new Date(b.date))
                         .map(t => (
-                            <div key={t.id} className="grid grid-cols-12 gap-2 items-center p-1.5 border-b border-gray-200 dark:border-gray-700">
+                            <div key={t.id} className="grid grid-cols-12 gap-2 items-center p-1.5 border-b border-gray-700">
                                 <div className="col-span-3 font-mono">{t.date}</div>
-                                <div className={`col-span-2 text-right font-mono ${t.amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                <div className={`col-span-2 text-right font-mono ${t.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {t.amount.toFixed(2)}
                                 </div>
-                                <div className="col-span-4 font-mono text-gray-500 dark:text-gray-400 text-xs truncate" title={t.id}>
+                                <div className="col-span-4 font-mono text-gray-400 text-xs truncate" title={t.id}>
                                     {t.id}
                                 </div>
                                 <div className="col-span-3 flex items-center justify-end gap-2 text-xs">
-                                    {t.isPosted && <span className="text-cyan-500 dark:text-cyan-400" title="Posted">✓</span>}
+                                    {t.isPosted && <span className="text-cyan-400" title="Posted">✓</span>}
                                     {t.isModified && <span className="text-red-500 font-bold" title="Modified">(M)</span>}
                                     {t.date < todayString && !t.isPosted && <span className="text-red-500 font-bold animate-pulse" title="Past Due">(!)</span>}
                                 </div>
@@ -1768,48 +1739,48 @@ const AppDashboard = ({ budgetId, settings, initialRules, initialTransactions, d
                         ))
                     }
                     {transactions.filter(t => t.ruleId === selectedRuleForDetails?.id).length === 0 && (
-                        <p className="text-center text-gray-500 dark:text-gray-400 p-4">No transactions found for this rule.</p>
+                        <p className="text-center text-gray-400 p-4">No transactions found for this rule.</p>
                     )}
                 </div>
             </Modal>
             <Modal isOpen={isEditBudgetIdModalOpen} onClose={() => setIsEditBudgetIdModalOpen(false)} title="Change Budget ID">
-                <div className="space-y-4 text-sm text-gray-800 dark:text-white">
+                <div className="space-y-4 text-sm text-white">
                     <p>Enter a new ID (3-7 characters) using letters and numbers. This will move all your data to the new ID.</p>
                     <input 
                         type="text"
                         value={newBudgetIdInput}
                         onChange={(e) => setNewBudgetIdInput(e.target.value.toUpperCase())}
                         maxLength="7"
-                        className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
+                        className="w-full bg-gray-700 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
                     />
-                    {modalError && <p className="text-red-500 dark:text-red-400 text-xs">{modalError}</p>}
+                    {modalError && <p className="text-red-400 text-xs">{modalError}</p>}
                     <div className="flex justify-end gap-3 pt-2">
-                        <button onClick={() => setIsEditBudgetIdModalOpen(false)} className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
-                        <button onClick={handleUpdateBudgetId} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Save and Move Data</button>
+                        <button onClick={() => setIsEditBudgetIdModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button onClick={handleUpdateBudgetId} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Save and Move Data</button>
                     </div>
                 </div>
             </Modal>
             <Modal isOpen={isConfirmSettingsModalOpen} onClose={() => setIsConfirmSettingsModalOpen(false)} title="Confirm Settings Change">
-                <div className="text-sm text-gray-800 dark:text-white">
+                <div className="text-sm text-white">
                     {transactionsToProcess.toAdd.length > 0 && (
                         <div className="mb-4">
                             <p className="font-bold">The following {transactionsToProcess.toAdd.length} transactions will be ADDED:</p>
-                            <div className="max-h-32 overflow-y-auto bg-gray-100 dark:bg-gray-700/50 p-2 rounded mt-2">
+                            <div className="max-h-32 overflow-y-auto bg-gray-700/50 p-2 rounded mt-2">
                                 {transactionsToProcess.toAdd.map((t) => <div key={t.key} className="flex justify-between text-xs"><span className="truncate">{t.name}</span><span>{t.date}</span></div>)}
                             </div>
                         </div>
                     )}
                     {transactionsToProcess.toDelete.length > 0 && (
                          <div className="mb-4">
-                            <p className="font-bold text-red-600 dark:text-red-400">The following {transactionsToProcess.toDelete.length} transactions will be DELETED:</p>
-                            <div className="max-h-32 overflow-y-auto bg-gray-100 dark:bg-gray-700/50 p-2 rounded mt-2">
+                            <p className="font-bold text-red-400">The following {transactionsToProcess.toDelete.length} transactions will be DELETED:</p>
+                            <div className="max-h-32 overflow-y-auto bg-gray-700/50 p-2 rounded mt-2">
                                 {transactionsToProcess.toDelete.map((t) => <div key={t.id} className="flex justify-between text-xs"><span className="truncate">{t.name}</span><span>{t.date}</span></div>)}
                             </div>
                         </div>
                     )}
-                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <button onClick={() => setIsConfirmSettingsModalOpen(false)} className="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
-                        <button onClick={handleConfirmSettingsChange} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Confirm</button>
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                        <button onClick={() => setIsConfirmSettingsModalOpen(false)} className="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded">Cancel</button>
+                        <button onClick={handleConfirmSettingsChange} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Confirm</button>
                     </div>
                 </div>
             </Modal>
@@ -1825,7 +1796,7 @@ export default function App() {
     const [authReady, setAuthReady] = React.useState(false);
     const [db, setDb] = React.useState(null);
     const [userId, setUserId] = React.useState(null);
-    
+
     const [budgetState, setBudgetState] = React.useState({
         id: null,
         settings: null,
@@ -1836,12 +1807,6 @@ export default function App() {
 
      React.useEffect(() => {
         // Inject dependencies into the document head
-        if (!document.getElementById('tailwind-config-script')) {
-            const configScript = document.createElement('script');
-            configScript.id = 'tailwind-config-script';
-            configScript.innerHTML = `tailwind.config = { darkMode: 'class' }`;
-            document.head.appendChild(configScript);
-        }
         if (!document.getElementById('tailwind-script')) {
             const tailwindScript = document.createElement('script');
             tailwindScript.id = 'tailwind-script';
@@ -1882,8 +1847,6 @@ export default function App() {
         }
 
         document.title = "Predictive Budgeting App";
-        // Force dark mode on initial load and remove any possibility of light mode
-        document.documentElement.classList.add('dark');
     }, []);
 
 
@@ -1940,20 +1903,10 @@ export default function App() {
             settings: newSettings,
         }));
     };
-    
-    const handleLogout = () => {
-        setBudgetState({
-            id: null,
-            settings: null,
-            rules: [],
-            transactions: [],
-            virtualDate: null,
-        });
-    };
 
 
     if (!authReady || !db) {
-        return <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex justify-center items-center text-gray-800 dark:text-white">Authenticating & Initializing...</div>;
+        return <div className="min-h-screen bg-gray-900 flex justify-center items-center text-white">Authenticating & Initializing...</div>;
     }
     
     return (
@@ -1970,7 +1923,6 @@ export default function App() {
                     onBudgetIdChange={handleBudgetIdChange}
                     onSettingsChange={handleSettingsChange}
                     virtualDate={budgetState.virtualDate}
-                    onLogout={handleLogout}
                 />
             )}
         </React.Fragment>
